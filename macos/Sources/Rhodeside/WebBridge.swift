@@ -31,7 +31,7 @@ extension WKWebView {
     func send(_ msg: [String: Any]) {
         callAsyncJavaScript("if (window.rhodeside) window.rhodeside.receive(msg)", arguments: ["msg": msg], in: nil, in: .page) { result in
             if case .failure(let err) = result {
-                Log.warn("发给网页失败（\(msg["type"] ?? "?")）：\(err.localizedDescription)")
+                Log.warn("发给网页失败（\(msg["type"] ?? "?")）：\(err.logDescription)")
             }
         }
     }
@@ -40,6 +40,14 @@ extension WKWebView {
     var webProcessID: pid_t? {
         let sel = NSSelectorFromString("_webProcessIdentifier")
         guard responds(to: sel), let n = value(forKey: "_webProcessIdentifier") as? NSNumber else { return nil }
+        let pid = n.int32Value
+        return pid > 0 ? pid : nil
+    }
+
+    /// WebKit GPU 进程的 pid（私有属性，同一个 App 的网页共用一个；取不到就是 nil）
+    var gpuProcessID: pid_t? {
+        let sel = NSSelectorFromString("_gpuProcessIdentifier")
+        guard responds(to: sel), let n = value(forKey: "_gpuProcessIdentifier") as? NSNumber else { return nil }
         let pid = n.int32Value
         return pid > 0 ? pid : nil
     }

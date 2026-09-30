@@ -27,6 +27,8 @@ enum Log {
             Log.error("未捕获的异常：\(e.name.rawValue) \(e.reason ?? "")\n\(e.callStackSymbols.joined(separator: "\n"))")
             Log.flush()
         }
+        // 段错误、Swift 运行时错误等崩溃信号：直接 write(2) 到同一个文件
+        CrashTrap.install(fd: handle?.fileDescriptor ?? -1)
     }
 
     static func info(_ s: @autoclosure () -> String) { write("INFO", s()) }

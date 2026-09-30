@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var hideItem: NSMenuItem?
     /// 持续播动画的界面：不让系统 App Nap 节流定时器和 displayLink（否则会周期性卡几百毫秒）
     private var activity: NSObjectProtocol?
+    private let launched = Date()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // 单实例：已经有一个在跑就退出（LaunchServices 平时会把第二次打开转给已有的那个，这里防 open -n / 直接跑二进制）。
@@ -23,8 +24,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        LogUploader.markRunning()
-        Log.info("启动 Rhodeside \(Paths.version)，pid \(getpid())，\(ProcessInfo.processInfo.operatingSystemVersionString)，程序在 \(Bundle.main.bundlePath)")
+        RunMarker.begin()
+        Log.info("启动 Rhodeside \(Paths.version)，pid \(getpid())，\(ProcessInfo.processInfo.operatingSystemVersionString)，\(Machine.summary)，程序在 \(Bundle.main.bundlePath)")
+        if RunMarker.previousRunCrashed {
+            Log.warn(RunMarker.previous?.uncleanExitSummary(now: Date()) ?? "上次没有正常退出（崩溃、被强制结束、断电或内存不够被系统杀掉）")
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { _ in
+            Log.info("系统要关机 / 重启 / 注销")
+        }
         setupMainMenu()
         setupStatusItem()
         setupSignals()
@@ -55,10 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        CrashTrap.terminating = true
         manager?.shutdown()
-        Log.info("退出")
+        Log.info("退出（运行了 \(RunRecord.duration(Date().timeIntervalSince(launched)))）")
         Log.flush()
-        LogUploader.markStopped()
+        RunMarker.end()
     }
 
     /* ---------------------------------------------------------------- 菜单 */
@@ -138,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             signal(sig, SIG_IGN)
             let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
             src.setEventHandler {
-                Log.info("收到信号 \(sig)，退出")
+                Log.info("收到 \(Signals.describe(sig))，退出")
                 NSApp.terminate(nil)
             }
             src.resume()

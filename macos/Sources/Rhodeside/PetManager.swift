@@ -23,6 +23,8 @@ final class PetManager {
     private(set) var updater: RemoteUpdater!
     private(set) var auth: Auth!
     private(set) var logUploader: LogUploader!
+    /// 每分钟采一次内存 / CPU，占用过大时写警告
+    private(set) var monitor: ResourceMonitor!
     private var frozenUntil: CFTimeInterval = 0
     private var timers: [Timer] = []
     private var observers: [NSObjectProtocol] = []
@@ -84,6 +86,7 @@ final class PetManager {
         logUploader = LogUploader(updater: updater, auth: auth)
         logUploader.onChange = { [weak self] in self?.pushState() }
         logUploader.start()
+        monitor = ResourceMonitor { [weak self] in self?.monitoredProcesses() ?? [] }
     }
 
     func start() {
@@ -127,9 +130,11 @@ final class PetManager {
         for pc in config.pets { pets.append(Pet(config: pc, manager: self)) }
         updater.apply(config.updates)
         Log.info("网页：\(Paths.usingDevWeb ? "开发版 web-dev（热更新）" : "App 内置")；\(pets.count) 只桌宠；\(NSScreen.screens.count) 块屏幕")
+        monitor.start()
     }
 
     func shutdown() {
+        monitor.stop()
         savePositions()
         for t in timers { t.invalidate() }
         for p in pets { p.close() }
@@ -640,6 +645,20 @@ final class PetManager {
             "pets": pets.map(\.state),
             "config": jsonObject(config),
         ]
+    }
+
+    /// 资源监控看哪些进程：App 自己、WebKit 的 GPU 进程（所有网页共用一个）、每只桌宠和每个窗口的网页进程
+    private func monitoredProcesses() -> [ResourceMonitor.Proc] {
+        var out = [ResourceMonitor.Proc(name: "App", kind: .app, pid: getpid())]
+        let views = pets.map(\.window.webView) + pages.map(\.webView)
+        if let gpu = views.lazy.compactMap(\.gpuProcessID).first { out.append(.init(name: "GPU", kind: .gpu, pid: gpu)) }
+        for pet in pets {
+            if let pid = pet.window.webView.webProcessID { out.append(.init(name: pet.monitorName, kind: .web, pid: pid)) }
+        }
+        for page in pages {
+            if let pid = page.webView.webProcessID { out.append(.init(name: page.monitorName, kind: .web, pid: pid)) }
+        }
+        return out
     }
 
     func memoryReport() -> [String: Any] {

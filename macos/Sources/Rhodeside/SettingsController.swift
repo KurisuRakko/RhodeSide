@@ -63,6 +63,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
     }
 
     let page: Page
+    /// 资源监控里的名字
+    var monitorName: String { "网页 \(page == .settings ? "主窗口" : "引导页")" }
     let window: NSWindow
     let webView: DropWebView
     private unowned let manager: PetManager
@@ -278,12 +280,22 @@ extension SettingsController: WKScriptMessageHandler {
 }
 
 extension SettingsController: WKNavigationDelegate {
+    @objc(_webView:webContentProcessDidTerminateWithReason:)
+    func webView(_ webView: WKWebView, webContentProcessDidTerminateWithReason reason: Int) {
+        webContentTerminated(WebTermination.describe(reason))
+    }
+
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        Log.error("设置页网页进程退出了，重新载入")
+        webContentTerminated(nil)
+    }
+
+    private func webContentTerminated(_ reason: String?) {
+        let mb = manager.monitor?.lastMB(monitorName).map { "，最近一次采样 \(Int($0)) MB" } ?? ""
+        Log.error("\(page.file) 网页进程退出了：\(reason ?? "原因未知")\(mb)，重新载入")
         loadPage()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        Log.error("settings.html 打不开：\(error.localizedDescription)")
+        Log.error("\(page.file) 打不开：\(error.logDescription)")
     }
 }

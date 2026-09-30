@@ -42,12 +42,25 @@ App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前�
 
 总是开，没有开关（`Sources/Rhodeside/LogUploader.swift`）：
 - 每天一次，把 `rhodeside.log` 新增的部分（单次最多 4MB，超了只传最后的）传到 `POST https://rhodeside.rakko.cn/v1/logs`；
-- 上次没正常退出（崩溃、被强制结束；正常退出和 SIGTERM 不算）：启动 3 秒后立刻传（两分钟后再补查一次系统崩溃报告），连同 `~/Library/Logs/DiagnosticReports/Rhodeside*.ips` 里没传过的系统崩溃报告；
+- 上次没正常退出（崩溃、被强制结束；正常退出和 SIGTERM 不算）：启动 3 秒后立刻传（两分钟后再补查一次系统崩溃报告），连同 `~/Library/Logs/DiagnosticReports/` 里没传过的系统崩溃报告（`Rhodeside*.ips`，以及 responsibleProc 是 Rhodeside 的 WebKit 网页 / GPU 进程报告）；
 - 设置 → 故障排查 →「立即上传日志」。
 登录了带票据，按 Priestess 账号归档；没登录也传（进 `_anon/`，body ≤ 2MB，最多 200 台）。失败不前移游标，每小时再试。
 服务器：`auth` 容器（`auth/server.mjs`）存到 `/opt/stacks/rhodeside/logs/<账号|_anon>/<设备 UUID>/`
 （`rhodeside.log` 超 20MB 轮转一份、`crash/*.ips` 留 20 份、`meta.json` 记电脑名 / 用户名 / 版本 / 最后上传时间）；nginx 每 IP 每分钟 6 次。
 用 `deploy.sh remote-logs` 看。
+
+### 日志里的诊断数据
+
+（`Sources/Rhodeside/Diagnostics.swift`，纯逻辑在 `PetCore/Diagnostics.swift`）
+- 启动一行带机型、芯片、核数、内存；退出一行带运行时长；收到 SIGTERM 等写信号名；系统关机 / 注销也记一行。
+- **崩溃**：崩溃信号（段错误、强制解包 nil / 越界等 Swift 运行时错误、abort……）到来时写一行 `[FATAL]`（信号、出错地址、哪个线程、最近一次内存采样），然后照常崩溃；
+  `exit()` 没走正常退出也记一行。下次启动：写「上次没有正常退出」+ 上次的版本、启动时间、最后心跳、死前内存（运行标记 `running` 每分钟更新）；
+  上传前把系统崩溃报告摘要写进日志（异常类型、信号、终止原因、fatalError 的文字、崩溃线程前 12 帧）。
+- **网页进程没了**：写原因（超出内存上限 / 超出 CPU 上限 / 崩溃，走 WebKit 私有回调）和最近一次采样的内存。
+- **资源**：每分钟采样 App、GPU 进程、每只桌宠和每个窗口的网页进程的内存和 CPU；每 10 分钟一行 `资源：…` 汇总；
+  超上限（App / 网页 400 MB、GPU 1500 MB、合计 3000 MB）、比启动后最低值涨了 300 MB、CPU 连续两分钟 > 80% 时写 WARN（同一件事半小时内不重复，除非又涨了一半）；
+  系统内存压力变成警告 / 严重也写 WARN。
+- 错误日志带错误域和错误码（如 `NSURLErrorDomain -1004`）。
 
 ### 鉴权（Priestess）
 
@@ -99,7 +112,7 @@ App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前�
 | `~/Library/Logs/Rhodeside/rhodeside.log` | 日志（网页的 console 也在这里） |
 | `~/Library/Logs/Rhodeside/snapshots/` | 调试快照 |
 | `~/Library/Application Support/Rhodeside/log-upload.json` | 日志上传：设备 id、读到哪了、上次上传时间 |
-| `~/Library/Application Support/Rhodeside/running` | 运行标记（正常退出时删掉；启动时还在 = 上次崩溃了） |
+| `~/Library/Application Support/Rhodeside/running` | 运行标记（JSON：版本、启动时间、每分钟的心跳和内存；正常退出时删掉；启动时还在 = 上次崩溃了） |
 
 ## 调试链接
 

@@ -73,6 +73,8 @@ final class Pet: NSObject {
     }
 
     var short: String { String(config.id.prefix(6)) }
+    /// 资源监控里的名字
+    var monitorName: String { "网页 \(short)（\(config.model)）" }
 
     init(config: PetConfig, manager: PetManager) {
         self.config = config.sanitized()
@@ -602,9 +604,20 @@ extension Pet: WKScriptMessageHandler {
 }
 
 extension Pet: WKNavigationDelegate {
+    /// WebKit 私有回调，带上原因（内存超限 / CPU 超限 / 崩溃）；实现了它 WebKit 就不再调下面公开的那个
+    @objc(_webView:webContentProcessDidTerminateWithReason:)
+    func webView(_ webView: WKWebView, webContentProcessDidTerminateWithReason reason: Int) {
+        webContentTerminated(WebTermination.describe(reason))
+    }
+
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webContentTerminated(nil)
+    }
+
+    private func webContentTerminated(_ reason: String?) {
         crashes = crashes.filter { $0.timeIntervalSinceNow > -60 } + [Date()]
-        Log.error("[\(short)] 网页进程退出了（一分钟内第 \(crashes.count) 次）")
+        let mb = manager.monitor?.lastMB(monitorName).map { "，最近一次采样 \(Int($0)) MB" } ?? ""
+        Log.error("[\(short)] 网页进程退出了：\(reason ?? "原因未知")（一分钟内第 \(crashes.count) 次\(mb)）")
         guard crashes.count <= 3 else {
             lastError = "渲染进程 1 分钟内崩溃 \(crashes.count) 次，已停止自动重载"
             manager.petChanged(self)
@@ -618,11 +631,11 @@ extension Pet: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        Log.error("[\(short)] pet.html 载入失败：\(error.localizedDescription)")
+        Log.error("[\(short)] pet.html 载入失败：\(error.logDescription)")
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        Log.error("[\(short)] pet.html 打不开：\(error.localizedDescription)")
+        Log.error("[\(short)] pet.html 打不开：\(error.logDescription)")
     }
 }
 
