@@ -5,8 +5,8 @@ import SystemConfiguration
 /// 日志自动上传（总是开，没有开关）：把 rhodeside.log 新增的部分传到更新通道的 `POST /v1/logs`。
 /// - 每天一次（启动一分钟后和之后每小时看一眼，距上次成功 ≥ 24 小时就传）；
 /// - 上次没正常退出（崩溃、被强制结束）：启动 10 秒后立刻传，连同系统的崩溃报告
-///   （`~/Library/Logs/DiagnosticReports/Rhodeside*.ips`，每次上传都会顺手补传没传过的）；
-/// - 设置 → 故障排查 →「立即上传日志」。
+///   （`~/Library/Logs/DiagnosticReports/Rhodeside*.ips`，每次上传都会顺手补传没传过的）。
+/// 没有手动上传入口（2026-09-30 去掉了设置里的「立即上传日志」）。
 /// 登录了带票据（服务器按账号归档），没登录也传（匿名）：登录不上正是最需要日志的时候。失败不前移游标，下个小时再试。
 final class LogUploader {
     /// 单次最多传这么多原始日志（超了只传最后这些）
@@ -85,10 +85,8 @@ final class LogUploader {
         ]
     }
 
-    var busy: Bool { running != nil }
-
-    /// reason：daily / crash / manual。done 在主线程回调，参数是错误（nil = 成功）；已经在传时什么也不做
-    func run(_ reason: String, done: ((String?) -> Void)? = nil) {
+    /// reason：daily / crash。已经在传时什么也不做
+    private func run(_ reason: String) {
         guard running == nil else { return }
         running = Task { @MainActor in
             do {
@@ -100,7 +98,6 @@ final class LogUploader {
             }
             self.running = nil
             self.onChange?()
-            done?(self.lastError)
         }
         onChange?()
     }
