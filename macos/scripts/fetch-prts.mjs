@@ -166,7 +166,8 @@ async function fetchModel(name, id) {
     let files = 0
     const skins = {}
     const bad = []
-    const keep = new Set(['skins.json'])
+    // voice/ 是 fetch-voice.mjs 拉的基建语音，不归这里管
+    const keep = new Set(['skins.json', 'voice'])
     for (const { skinName, groups } of skinsIn) {
       const folders = new Set(groups.map((g) => g.file.split('/')[0]))
       try {

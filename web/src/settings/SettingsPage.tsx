@@ -7,7 +7,14 @@ import { useState } from 'react'
 
 import * as I from '../ui/icons.tsx'
 import { native, send, type NativeState, type UpdateStatus } from './bridge.ts'
-import { Group, Row, SwitchRow } from './ui.tsx'
+import { Choice, Group, nearest, Row, SwitchRow } from './ui.tsx'
+
+const VOLUMES: [string, string][] = [
+  ['1', '100%'],
+  ['0.7', '70%'],
+  ['0.5', '50%'],
+  ['0.3', '30%'],
+]
 
 const APP_STATE: Record<string, string> = {
   waiting: '有新版本，拖动结束后安装',
@@ -19,6 +26,8 @@ const APP_STATE: Record<string, string> = {
 
 export function SettingsPage({ state }: { state: NativeState }) {
   const { config } = state
+  // 老版本 App 的配置里没有 voice（前端先热更新到了、App 还没更新时）：不显示语音设置
+  const voice = config.voice
   return (
     <div className="rs-page">
       <header className="rs-page__head">
@@ -47,6 +56,26 @@ export function SettingsPage({ state }: { state: NativeState }) {
           onChange={(v) => send({ type: 'updateGlobal', patch: { hideInFullscreen: v } })}
         />
         <IgnoreList apps={config.ignoredApps} defaults={state.defaultIgnoredApps} />
+        {voice && (
+          <>
+            <SwitchRow
+              label="语音"
+              hint="基建形态下出现时和被点一下时说话（模型带语音才有）"
+              checked={voice.enabled}
+              onChange={(v) => send({ type: 'updateGlobal', patch: { voice: { ...voice, enabled: v } } })}
+            />
+            {voice.enabled && (
+              <Row label="语音音量">
+                <Choice
+                  aria="语音音量"
+                  value={nearest(voice.volume, VOLUMES)}
+                  options={VOLUMES}
+                  onChange={(v) => send({ type: 'updateGlobal', patch: { voice: { ...voice, volume: Number(v) } } })}
+                />
+              </Row>
+            )}
+          </>
+        )}
       </Group>
 
       <Group title="通用">

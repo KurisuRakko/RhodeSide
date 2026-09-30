@@ -13,6 +13,7 @@ import { collectSets, fetchManifest, fetchSetImages, fetchSkeletons, type ModelS
 import { boundsOf, loadModel, type Box, type LoadedModel } from '../stage/model.ts'
 import { detectCombos } from '../stage/combos.ts'
 import { listen, native, post as postNative } from '../native/transport.ts'
+import { fetchVoice, pauseVoice, primeAudio, setVoice, useVoice, voiceTouch, type VoiceSettings } from './voice.ts'
 
 type LoadMsg = {
   type: 'load'
@@ -26,6 +27,8 @@ type LoadMsg = {
   height?: number
   /** 模型名，原样放回 loaded 里 */
   model?: string
+  /** 全局语音设置（开关 / 音量） */
+  voice?: VoiceSettings
 }
 
 type Incoming =
@@ -39,6 +42,8 @@ type Incoming =
   | { type: 'fps'; value: number }
   | { type: 'pause'; paused: boolean }
   | { type: 'pos'; x: number; vx: number; w: number }
+  | { type: 'touch' }
+  | ({ type: 'voice' } & VoiceSettings)
 
 interface Layout {
   /** 窗口该有的大小：所有动画、两个朝向都装得下 */
@@ -161,6 +166,7 @@ function pickSet(sets: ModelSet[], outfit?: string, group?: string): ModelSet {
 
 async function load(msg: LoadMsg) {
   const seq = ++loadSeq
+  const voice = fetchVoice(msg.base, msg.files)
   try {
     const sets = await collectSets(await fetchSkeletons(msg.base, msg.files))
     const chosen = pickSet(sets, msg.outfit, msg.group)
@@ -209,6 +215,8 @@ async function load(msg: LoadMsg) {
       rest: toPt(next.rest, next, scale),
       union: toPt(next.union, next, scale),
     })
+    const voiceSet = await voice
+    if (seq === loadSeq) void useVoice(voiceSet, msg.model ?? msg.files[0]?.split('/')[0] ?? '', chosen.group)
   } catch (err) {
     if (seq === loadSeq) post({ type: 'error', stage: 'load', text: fmt(err) })
   }
@@ -354,6 +362,8 @@ function hit(id: number, x: number, y: number) {
 function receive(msg: Incoming) {
   switch (msg.type) {
     case 'load':
+      setVoice(msg.voice)
+      primeAudio()
       void load(msg)
       break
     case 'play':
@@ -391,8 +401,17 @@ function receive(msg: Incoming) {
       posW = msg.w
       posAt = performance.now()
       break
+    case 'touch':
+      primeAudio()
+      voiceTouch()
+      break
+    case 'voice':
+      setVoice(msg)
+      primeAudio()
+      break
     case 'pause':
       paused = !!msg.paused
+      pauseVoice(paused)
       if (paused) {
         for (const id of pendingSnapshots.splice(0)) post({ type: 'error', stage: 'snapshot', text: `桌宠已暂停（隐藏或息屏），没有快照 ${id}` })
         for (const q of pendingHits.splice(0)) post({ type: 'hit', id: q.id, x: q.x, y: q.y, inside: false })

@@ -11,7 +11,8 @@ struct ModelEntry {
 }
 
 enum ModelLibrary {
-    static let extensions: Set<String> = ["skel", "json", "atlas", "txt", "bytes", "png", "webp"]
+    /// wav / mp3：voice/ 下的基建语音（fetch-voice.mjs）
+    static let extensions: Set<String> = ["skel", "json", "atlas", "txt", "bytes", "png", "webp", "wav", "mp3"]
 
     static func all() -> [ModelEntry] {
         let user = entries(in: Paths.userModels, builtin: false)

@@ -20,6 +20,8 @@ enum WebBridge {
         let cfg = WKWebViewConfiguration()
         cfg.setURLSchemeHandler(scheme, forURLScheme: SchemeHandler.scheme)
         cfg.userContentController.add(proxy, name: handlerName)
+        // 基建语音：点击是原生鼠标层收的，网页里没有用户手势，显式放开自动播放（macOS 默认也是 none）
+        cfg.mediaTypesRequiringUserActionForPlayback = []
         return cfg
     }
 }

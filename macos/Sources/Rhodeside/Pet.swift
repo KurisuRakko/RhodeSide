@@ -132,7 +132,7 @@ final class Pet: NSObject {
             return
         }
         loadedFiles = model.files
-        var msg: [String: Any] = ["type": "load", "base": "./models/", "files": model.files, "height": config.height, "pma": config.pma]
+        var msg: [String: Any] = ["type": "load", "base": "./models/", "files": model.files, "height": config.height, "pma": config.pma, "voice": voiceMessage()]
         if name == config.model {
             if let o = config.outfit { msg["outfit"] = o }
             if let g = config.group { msg["group"] = g }
@@ -140,6 +140,18 @@ final class Pet: NSObject {
             msg["group"] = "基建"
         }
         msg["model"] = name
+        window.webView.send(msg)
+    }
+
+    /// 语音开关 / 音量（全局设置）：页面拿它决定播不播、多大声
+    func voiceMessage() -> [String: Any] {
+        let v = manager.config.voice
+        return ["enabled": v.enabled, "volume": v.volume]
+    }
+
+    func applyVoice() {
+        var msg = voiceMessage()
+        msg["type"] = "voice"
         window.webView.send(msg)
     }
 
@@ -626,6 +638,8 @@ extension Pet: MouseCatcherDelegate {
             brain.release(velocity: throwVelocity(p.samples, now: now))
         } else {
             brain.click()
+            // 基建形态点一下会说话（模型有 voice/ 才有声音，播什么由页面挑）
+            if !brain.battle { window.webView.send(["type": "touch"]) }
         }
     }
 

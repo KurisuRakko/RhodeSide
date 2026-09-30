@@ -15,6 +15,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var auth: AuthConfig
     /// 走完了首次启动的引导（登录 / 跳过）
     public var onboarded: Bool
+    /// 基建语音（模型带 voice/ 才有）
+    public var voice: VoiceConfig
 
     /// 默认模型（不再打进 App：登录后从服务器下载）
     public static let builtinModel = "荒芜拉普兰德"
@@ -34,7 +36,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         ignoredApps: [String] = AppConfig.defaultIgnoredApps,
         updates: UpdateConfig = UpdateConfig(),
         auth: AuthConfig = AuthConfig(),
-        onboarded: Bool = false
+        onboarded: Bool = false,
+        voice: VoiceConfig = VoiceConfig()
     ) {
         self.version = version
         self.pets = pets
@@ -44,6 +47,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.updates = updates
         self.auth = auth
         self.onboarded = onboarded
+        self.voice = voice
     }
 
     public init(from decoder: Decoder) throws {
@@ -58,6 +62,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         auth = try c.decodeIfPresent(AuthConfig.self, forKey: .auth) ?? d.auth
         // 旧版本写的配置没有这个键：那是已经在用的人，不再弹引导
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
+        voice = try c.decodeIfPresent(VoiceConfig.self, forKey: .voice) ?? d.voice
     }
 
     public enum LoadResult: Equatable, Sendable {
@@ -113,6 +118,24 @@ public struct UpdateConfig: Codable, Equatable, Sendable {
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
         url = try c.decodeIfPresent(String.self, forKey: .url) ?? d.url
         interval = try c.decodeIfPresent(Double.self, forKey: .interval) ?? d.interval
+    }
+}
+
+public struct VoiceConfig: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    /// 0…1
+    public var volume: Double
+
+    public init(enabled: Bool = true, volume: Double = 0.7) {
+        self.enabled = enabled
+        self.volume = min(max(volume, 0), 1)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = VoiceConfig()
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        volume = min(max(try c.decodeIfPresent(Double.self, forKey: .volume) ?? d.volume, 0), 1)
     }
 }
 

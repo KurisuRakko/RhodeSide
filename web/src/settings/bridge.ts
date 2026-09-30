@@ -37,6 +37,8 @@ export interface AppConfig {
   updates: { enabled: boolean; url: string; interval: number }
   auth: { enabled: boolean; api: string; appID: string }
   onboarded: boolean
+  /** 老版本 App 没有 */
+  voice?: { enabled: boolean; volume: number }
 }
 
 export interface UpdateStatus {
@@ -213,6 +215,7 @@ async function fakeState(): Promise<NativeState> {
       updates: { enabled: true, url: 'https://rhodeside.rakko.cn', interval: 5 },
       auth: { enabled: true, api: 'https://api.rakko.cn', appID: 'rhodeside' },
       onboarded: false,
+      voice: { enabled: true, volume: 0.7 },
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],

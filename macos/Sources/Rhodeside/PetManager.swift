@@ -263,6 +263,9 @@ final class PetManager {
         if old.hideInFullscreen != new.hideInFullscreen {
             for pet in pets { pet.window.setFullscreenAuxiliary(!new.hideInFullscreen) }
         }
+        if old.voice != new.voice {
+            for pet in pets { pet.applyVoice() }
+        }
         auth.apply(new.auth)
         updater.apply(new.updates)
         if old.walkOnWindows != new.walkOnWindows || old.ignoredApps != new.ignoredApps || old.hideInFullscreen != new.hideInFullscreen {

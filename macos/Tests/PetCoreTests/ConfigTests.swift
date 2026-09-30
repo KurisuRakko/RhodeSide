@@ -46,6 +46,14 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(cfg.onboarded)
         XCTAssertFalse(AppConfig().onboarded)
         XCTAssertFalse(cfg.auth.enabled)
+        XCTAssertEqual(cfg.voice, VoiceConfig(enabled: true, volume: 0.7))
+    }
+
+    func testVoiceDecodesLeniently() throws {
+        let url = dir.appendingPathComponent("config.json")
+        try Data(#"{"voice":{"volume":3}}"#.utf8).write(to: url)
+        let (cfg, _) = AppConfig.load(from: url)
+        XCTAssertEqual(cfg.voice, VoiceConfig(enabled: true, volume: 1))
     }
 
     func testPetModesDecodeLeniently() throws {
