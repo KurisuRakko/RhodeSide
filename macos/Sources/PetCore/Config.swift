@@ -352,9 +352,12 @@ public struct SavedPositions: Codable, Equatable, Sendable {
     public struct Point: Codable, Equatable, Sendable {
         public var x: Double
         public var y: Double
-        public init(x: Double, y: Double) {
+        /// 叠在哪只头上（叠叠乐）
+        public var on: String?
+        public init(x: Double, y: Double, on: String? = nil) {
             self.x = x
             self.y = y
+            self.on = on
         }
     }
 

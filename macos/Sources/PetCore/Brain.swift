@@ -157,6 +157,11 @@ public final class Brain {
     private var arriveFace: Double?
     /// 这次下落是被人扔的（落地时发 `.dropped`）
     private var thrown = false
+    /// 这次下落能落到别的小人头上：只有被人扔的、重启后放回别人头上的才行
+    /// （从窗口边走下去、窗口关了掉下来的不行，免得套组成员意外叠上去就一直下不来）
+    private var mayStack = false
+    /// 叠在别人头上时，下面那只带着自己横着走的速度（给渲染端外推用）
+    private var carryVX = 0.0
 
     public init(params: PetParams, foot: CGPoint, random: @escaping () -> Double = { Double.random(in: 0..<1) }) {
         self.params = params
@@ -175,7 +180,7 @@ public final class Brain {
         switch behavior {
         case .walk: return facePending ? 0 : Double(dir) * params.walkSpeed
         case .fall: return velocity.dx
-        default: return 0
+        default: return isOnPet ? carryVX : 0
         }
     }
 
@@ -184,11 +189,21 @@ public final class Brain {
         return false
     }
 
+    /// 叠在别的小人头上：自己不走，跟着下面那只动
+    public var isOnPet: Bool { support.kind?.isPet ?? false }
+
+    /// 站在谁头上
+    public var below: String? {
+        if case .some(.pet(let id)) = support.kind { return id }
+        return nil
+    }
+
     /* ---------------------------------------------------------------- 外部事件 */
 
     /// 按住拖动：拎起来
     public func grab() {
         thrown = false
+        mayStack = false
         support = .none
         anchor = nil
         velocity = .zero
@@ -209,6 +224,7 @@ public final class Brain {
         let m = Self.maxSpeed
         velocity = CGVector(dx: min(max(v.dx, -m), m), dy: min(max(v.dy, -m), m))
         thrown = true
+        mayStack = true
         behavior = .fall
         playCurrent()
     }
@@ -257,7 +273,7 @@ public final class Brain {
     /// 走到了面朝 `face`。坐着也会站起来；睡觉、做动作、战斗形态、原地停留、没有走路动画都不走。
     @discardableResult
     public func go(to p: CGPoint, face: Double? = nil, world: World) -> Bool {
-        guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, params.roles.move != nil,
+        guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, !isOnPet, params.roles.move != nil,
               let here = platform(world) else { return false }
         return approach(p, face: face, here, world)
     }
@@ -390,9 +406,11 @@ public final class Brain {
         }
     }
 
-    /// 放到某个位置，从那里自由落下（恢复上次的位置、「叫回来」都用它）
-    public func teleport(to p: CGPoint) {
+    /// 放到某个位置，从那里自由落下（恢复上次的位置、「叫回来」都用它）。
+    /// `stack`：落下时能落到别的小人头上（重启后把叠着的放回去）
+    public func teleport(to p: CGPoint, stack: Bool = false) {
         thrown = false
+        mayStack = stack
         foot = p
         support = .none
         anchor = nil
@@ -427,11 +445,16 @@ public final class Brain {
             // 地面不会让小人掉下去：程序坞挪了、屏幕变窄了就把脚夹回来（不按半身宽夹，走到隔壁屏幕时才不会跳一下）
             p = first
             x = min(max(x, p.segment.minX), p.segment.maxX)
+        } else if case .pet = kind {
+            // 叠在头上：下面那只换了瘦一点的模型、头顶变窄了也不掉，夹回头顶范围
+            p = first
+            x = min(max(x, p.segment.minX), p.segment.maxX)
         } else {
             // 窗口关了、最小化了、被挪走了、脚下被别的窗口挡住了：都是找不到包含脚的那段
             guard let hit = same.first(where: { $0.segment.contains(x: x, tolerance: 1) }) else { return startFall() }
             p = hit
         }
+        carryVX = kind.isPet ? anchor.map { (p.anchorX - $0) / dt } ?? 0 : 0
         if let a = anchor { targetX += p.anchorX - a }
         anchor = p.anchorX
         foot = CGPoint(x: x, y: p.segment.y)
@@ -455,12 +478,14 @@ public final class Brain {
         let roles = params.roles
         let t = tuning
         if battle { return enter(.idle) }
-        if let l = leash, activity != .stay, roles.move != nil {
+        // 叠在别人头上：不回集合点，也不走（按原地停留来坐、睡、待机）
+        let stacked = isOnPet
+        if let l = leash, !stacked, activity != .stay, roles.move != nil {
             let below = isOnWindow && l.y < foot.y - Self.stepTolerance
             let side: Double = foot.x >= l.x ? 1 : -1
             if below || abs(foot.x - l.x) > l.radius, approach(CGPoint(x: l.x + side * l.gap, y: l.y), face: l.x, p, world) { return }
         }
-        switch activity {
+        switch stacked ? Activity.stay : activity {
         case .walk:
             if roles.move != nil { startWalk(p, world) } else { enter(.idle) }
         case .stay:
@@ -552,6 +577,7 @@ public final class Brain {
         // 往下落时穿过的最高那个平台
         if ny <= old.y {
             let hit = world.platforms
+                .filter { mayStack || !$0.kind.isPet }
                 .filter { $0.segment.y <= old.y + 0.5 && $0.segment.y >= ny && $0.segment.contains(x: nx, tolerance: 0) }
                 .max { $0.segment.y < $1.segment.y }
             if let p = hit { return land(on: p, x: nx) }
@@ -573,10 +599,12 @@ public final class Brain {
         velocity = .zero
         support = .on(p.kind, dx: x - p.anchorX)
         anchor = p.anchorX
+        mayStack = false
         enter(.idle)
         if thrown {
             thrown = false
-            emit(.dropped)
+            // 丢到别人头上不算「被丢开」：套组其余成员不来找它（不然下面那只会驮着它走开）
+            if !p.kind.isPet { emit(.dropped) }
         }
     }
 
@@ -595,8 +623,10 @@ public final class Brain {
 
     /// 相邻、差不多高、包含 x 的平台（优先最高的）
     private func neighbor(of p: Platform, x: Double, _ world: World) -> Platform? {
-        world.platforms
-            .filter { $0 != p && abs($0.segment.y - p.segment.y) <= Self.stepTolerance && $0.segment.contains(x: x, tolerance: 1) }
+        // 头顶不和别的平台相连：走不上去，也走不下来
+        guard !p.kind.isPet else { return nil }
+        return world.platforms
+            .filter { $0 != p && !$0.kind.isPet && abs($0.segment.y - p.segment.y) <= Self.stepTolerance && $0.segment.contains(x: x, tolerance: 1) }
             .max { $0.segment.y < $1.segment.y }
     }
 
@@ -604,17 +634,18 @@ public final class Brain {
     private func span(of p: Platform, _ world: World) -> (Double, Double) {
         var lo = p.segment.minX, loY = p.segment.y
         var hi = p.segment.maxX, hiY = p.segment.y
+        guard !p.kind.isPet else { return (lo, hi) }
         let tol = Self.stepTolerance
         for _ in 0..<8 {
             guard let q = world.platforms.first(where: {
-                abs($0.segment.y - hiY) <= tol && $0.segment.minX <= hi + 2 && $0.segment.maxX > hi + 1
+                !$0.kind.isPet && abs($0.segment.y - hiY) <= tol && $0.segment.minX <= hi + 2 && $0.segment.maxX > hi + 1
             }) else { break }
             hi = q.segment.maxX
             hiY = q.segment.y
         }
         for _ in 0..<8 {
             guard let q = world.platforms.first(where: {
-                abs($0.segment.y - loY) <= tol && $0.segment.maxX >= lo - 2 && $0.segment.minX < lo - 1
+                !$0.kind.isPet && abs($0.segment.y - loY) <= tol && $0.segment.maxX >= lo - 2 && $0.segment.minX < lo - 1
             }) else { break }
             lo = q.segment.minX
             loY = q.segment.y

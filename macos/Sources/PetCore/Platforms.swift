@@ -3,9 +3,16 @@ import CoreGraphics
 public enum PlatformKind: Hashable, Sendable {
     case ground(screen: UInt32)
     case window(id: UInt32)
+    /// 另一只桌宠的头顶（叠叠乐，见 `Stacking`）
+    case pet(id: String)
+
+    public var isPet: Bool {
+        if case .pet = self { return true }
+        return false
+    }
 }
 
-/// 能站的地方：每块屏幕的地面，加上每个窗口顶边没被挡住的线段。
+/// 能站的地方：每块屏幕的地面，加上每个窗口顶边没被挡住的线段（还有别的小人的头顶，由原生层按 `Stacking` 加进世界）。
 public struct Platform: Equatable, Sendable {
     public var kind: PlatformKind
     public var segment: Segment

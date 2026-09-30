@@ -34,6 +34,15 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(back, cfg)
     }
 
+    func testSavedPositionsKeepStackAndReadOldFiles() throws {
+        let url = dir.appendingPathComponent("positions.json")
+        try Data(#"{"pets":{"a":{"x":1,"y":2}}}"#.utf8).write(to: url) // 旧版本没有 on
+        XCTAssertEqual(SavedPositions.load(from: url), SavedPositions(pets: ["a": .init(x: 1, y: 2)]))
+        let p = SavedPositions(pets: ["a": .init(x: 1, y: 2), "b": .init(x: 1, y: 122, on: "a")])
+        try p.save(to: url)
+        XCTAssertEqual(SavedPositions.load(from: url), p)
+    }
+
     func testMissingKeysUseDefaults() throws {
         let url = dir.appendingPathComponent("config.json")
         try Data(#"{"pets":[{"id":"x","model":"m"}]}"#.utf8).write(to: url)

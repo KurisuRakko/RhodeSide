@@ -8,6 +8,10 @@ final class PetManager {
     private(set) var config: AppConfig
     private(set) var pets: [Pet] = []
     private var positions: SavedPositions
+    /// 重启前叠在别人头上、但下面那只还没载入的：上面那只 id → 下面那只 id，等下面那只放好了再把它放回去
+    /// （只等 `restackWindow` 秒：下面那只的模型要下载很久的话，上面那只早就在地上待着了，不再突然瞬移）
+    private var restack: [String: (on: String, at: CFTimeInterval)] = [:]
+    private static let restackWindow: CFTimeInterval = 20
     private(set) var screens: [ScreenInfo] = []
     private(set) var windows: [WindowInfo] = []
     private(set) var platforms: [Platform] = []
@@ -152,7 +156,7 @@ final class PetManager {
         for pet in pets { pet.setHidden(shouldHide(pet)) }
     }
 
-    /// 给某只桌宠的世界：脚下那个窗口由 WindowTracker 在后台高频查位置，平台跟着平移（全量扫描每秒只有 10 次，跟随会一顿一顿）
+    /// 给某只桌宠的世界（含别的小人的头顶）：脚下那个窗口由 WindowTracker 在后台高频查位置，平台跟着平移（全量扫描每秒只有 10 次，跟随会一顿一顿）
     func world(for pet: Pet) -> World {
         var ps = platforms
         if case .some(.window(let id)) = pet.brain.support.kind {
@@ -174,6 +178,7 @@ final class PetManager {
                 break // 刚站上去，后台还没查到：先按全量扫描的数据
             }
         }
+        ps += Stacking.heads(for: pet.config.id, pets: pets.map(\.head)) // 叠叠乐：别的小人的头顶
         return World(platforms: ps, screens: screens)
     }
 
@@ -187,8 +192,18 @@ final class PetManager {
 
     private func shouldHide(_ pet: Pet) -> Bool {
         if userHidden { return true }
-        guard !fullscreen.isEmpty, let s = screens.first(where: { $0.frame.contains(pet.brain.foot) }) else { return false }
+        guard !fullscreen.isEmpty, let s = screens.first(where: { $0.frame.contains(baseFoot(of: pet)) }) else { return false }
         return fullscreen.contains(s.id)
+    }
+
+    /// 叠着的一摞按最下面那只的脚算在哪块屏幕（一起藏、一起出来；塔顶伸出屏幕也不会漏掉）
+    private func baseFoot(of pet: Pet) -> CGPoint {
+        var cur = pet
+        for _ in 0..<16 {
+            guard let id = cur.brain.below, let lower = pets.first(where: { $0.config.id == id }) else { break }
+            cur = lower
+        }
+        return cur.brain.foot
     }
 
     func petVisibilityMayChange(_ pet: Pet) {
@@ -216,11 +231,53 @@ final class PetManager {
         return CGPoint(x: x, y: drop ? vf.maxY - 80 : vf.minY)
     }
 
+    /* ---------------------------------------------------------------- 叠叠乐 */
+
+    /// 刚放到屏幕上（第一次载入完）：重启前叠着的放回去
+    func petPlaced(_ pet: Pet) {
+        let id = pet.config.id
+        let now = CACurrentMediaTime()
+        if !pet.dropOnPlace, let on = positions.pets[id]?.on {
+            if let lower = pets.first(where: { $0.config.id == on && $0.placed }) { stack(pet, on: lower) } else { restack[id] = (on, now) }
+        }
+        for (top, r) in restack where r.on == id {
+            restack[top] = nil
+            guard now - r.at < Self.restackWindow, let t = pets.first(where: { $0.config.id == top }), t.brain.behavior != .held else { continue }
+            stack(t, on: pet)
+        }
+    }
+
+    /// 被拎起来了：不再等着放回去；叠在它上面的一起提到前面
+    func petGrabbed(_ pet: Pet) {
+        restack[pet.config.id] = nil
+        raiseStack(on: pet)
+    }
+
+    /// 从下面那只头顶上方一点落下去（横向按上次存的相对位置，夹在头顶范围里；同一个头上的几只不会叠成一只）
+    private func stack(_ top: Pet, on lower: Pet) {
+        let b = lower.brain
+        var dx = 0.0
+        if let t = positions.pets[top.config.id], let l = positions.pets[lower.config.id] { dx = t.x - l.x }
+        let half = b.params.halfWidth * Stacking.widthRatio
+        dx = min(max(dx, -half), half)
+        top.brain.teleport(to: CGPoint(x: Double(b.foot.x) + dx, y: Double(b.foot.y) + b.params.height + 1), stack: true)
+    }
+
+    /// 叠在 `lower` 上面的窗口排在它前面（上面的小人脚踩在下面那只头上，要画在它前面）
+    func raiseStack(on lower: Pet, depth: Int = 0) {
+        guard depth < 16 else { return }
+        for p in pets where p !== lower && !p.hidden && p.brain.below == lower.config.id {
+            p.window.panel.order(.above, relativeTo: lower.window.panel.windowNumber)
+            raiseStack(on: p, depth: depth + 1)
+        }
+    }
+
     func savePositions() {
         let ids = Set(config.pets.map(\.id))
         var p = SavedPositions(pets: positions.pets.filter { ids.contains($0.key) })
         for pet in pets where pet.placed {
-            p.pets[pet.config.id] = .init(x: (Double(pet.brain.foot.x) * 10).rounded() / 10, y: (Double(pet.brain.foot.y) * 10).rounded() / 10)
+            p.pets[pet.config.id] = .init(x: (Double(pet.brain.foot.x) * 10).rounded() / 10, y: (Double(pet.brain.foot.y) * 10).rounded() / 10,
+                                          on: pet.brain.below)
         }
         guard p != positions else { return }
         positions = p

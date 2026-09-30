@@ -56,6 +56,8 @@ final class Pet: NSObject {
     /// 悬停透明：当前的淡出程度（0 = 正常，1 = 完全淡到 hoverAlpha），逐帧逼近目标
     private var fade: Double = 0
     private var reportedBehavior: Behavior?
+    /// 上一帧站在谁头上（刚叠上去时把窗口排到它前面）
+    private var stackedOn: String?
     /// 战斗形态的连招（控制面板的按钮）；基建形态是空的
     private(set) var combos: [Combo] = []
     /// 帧间隔统计（调试用，debug/state 读完清零）：帧数、超过 1.5 倍预期间隔的次数、最大间隔
@@ -235,6 +237,7 @@ final class Pet: NSObject {
         if !placed {
             placed = true
             brain.teleport(to: manager.initialFoot(for: self, drop: dropOnPlace))
+            manager.petPlaced(self)
         }
         applyFrame()
         manager.petVisibilityMayChange(self)
@@ -313,6 +316,19 @@ final class Pet: NSObject {
             reportedBehavior = brain.behavior
             manager.petChanged(self)
         }
+        if brain.below != stackedOn {
+            stackedOn = brain.below
+            if let id = stackedOn, let lower = manager.pets.first(where: { $0.config.id == id }) {
+                window.panel.order(.above, relativeTo: lower.window.panel.windowNumber)
+                manager.raiseStack(on: self)
+            }
+        }
+    }
+
+    /// 给叠叠乐算头顶平台用
+    var head: Stacking.Head {
+        Stacking.Head(id: config.id, foot: brain.foot, height: brain.params.height, halfWidth: brain.params.halfWidth,
+                      below: brain.below, usable: info != nil && !hidden)
     }
 
     private func syncWeb(_ now: CFTimeInterval) {
@@ -424,14 +440,15 @@ final class Pet: NSObject {
     /// 省电：站着不动时原生层 30Hz 就够（只剩鼠标检测）。
     /// 渲染只在行走、下落、拖拽、互动时 60fps，其余 30fps：WebKit 每次提交图层都可能卡一下，提交少一半，停顿也少一半
     private func updateRates() {
-        let fast = brain.isMoving || press != nil || brain.isOnWindow
+        // 叠在别人头上的跟着下面那只动：和下面那只一样按 60Hz 跟，不然快速拖动时会落后一截
+        let fast = brain.isMoving || press != nil || brain.isOnWindow || brain.isOnPet
         let cls = fast ? 1 : 0
         if cls != rateClass {
             rateClass = cls
             link?.preferredFrameRateRange = fast ? .default : CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
         }
         let smooth: Set<Behavior> = [.walk, .fall, .held, .interact]
-        let fps = smooth.contains(brain.behavior) || press != nil ? 0 : 30
+        let fps = smooth.contains(brain.behavior) || press != nil || brain.isOnPet ? 0 : 30
         if fps != webFPS {
             webFPS = fps
             window.webView.send(["type": "fps", "value": fps])
@@ -454,6 +471,7 @@ final class Pet: NSObject {
         } else {
             applyFrame()
             window.panel.orderFrontRegardless()
+            manager.raiseStack(on: self)
             lastTick = 0
         }
         window.webView.send(["type": "pause", "paused": hide])
@@ -469,6 +487,7 @@ final class Pet: NSObject {
     func summon(to p: CGPoint) {
         guard placed else { return }
         press = nil
+        manager.petGrabbed(self) // 不再等着重启后放回别人头上
         brain.teleport(to: p)
     }
 
@@ -622,6 +641,7 @@ extension Pet: MouseCatcherDelegate {
             p.moved = true
             brain.grab()
             window.panel.orderFrontRegardless() // 拎起来的放到别的小人上面
+            manager.petGrabbed(self) // 叠在它头上的跟着提起来，也排到前面
         }
         let now = CACurrentMediaTime()
         p.samples.append((now, m))
