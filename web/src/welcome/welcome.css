@@ -1,0 +1,40 @@
+/* 首次启动引导。颜色 / 字体只用 Rakko Design 的 token。 */
+
+.rw-app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 32px 32px 20px;
+}
+
+.rw-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.rw-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.rw-text {
+  margin: 0;
+  color: var(--color-neutral-7);
+  line-height: 1.6;
+}
+
+.rw-text[data-error] {
+  color: var(--color-error);
+}
+
+.rw-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+}

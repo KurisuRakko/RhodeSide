@@ -1,0 +1,163 @@
+/* 模型库。颜色 / 字体只用 Rakko Design 的 token。 */
+
+.rl-lib {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+.rl-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.rl-search {
+  width: 100%;
+}
+
+.rl-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-neutral-2);
+  list-style: none;
+}
+
+.rl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.rl-row:hover {
+  background: var(--color-neutral-3);
+}
+
+.rl-row[data-current] {
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+}
+
+.rl-row__check {
+  display: flex;
+  flex: none;
+}
+
+.rl-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-neutral-10);
+  font-size: 13px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rl-row__meta {
+  flex: none;
+  color: var(--color-neutral-6);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.rl-row__meta[data-error] {
+  color: var(--color-error);
+}
+
+.rl-none,
+.rl-empty {
+  padding: 12px;
+}
+
+.rl-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-neutral-2);
+}
+
+.rl-canvas {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.rl-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.rl-caption__name {
+  color: var(--color-neutral-10);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.rl-caption__status {
+  color: var(--color-neutral-7);
+  font-size: 12px;
+}
+
+.rl-caption__status[data-error] {
+  color: var(--color-error);
+}
+
+.rl-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rl-footer__hint {
+  flex: 1;
+  color: var(--color-neutral-7);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .rl-lib {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(160px, 1fr) minmax(200px, 1fr);
+  }
+}
+
+/* 选模型页的列表：分「已下载 / 在线模型」两段 */
+.rl-heading {
+  padding: 8px 10px 4px;
+  color: var(--color-neutral-6);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.rl-login {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+}

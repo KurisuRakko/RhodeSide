@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@rakko/react": ["./vendor/rakko-design/react/src/index.ts"],
+      "@rakko/design-system/ripple": ["./vendor/rakko-design/design-system/src/ripple"]
+    }
+  },
+  "include": ["web"],
+  "exclude": ["web/dist", "web/public", "web/**/*.test.ts"]
+}

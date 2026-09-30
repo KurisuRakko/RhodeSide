@@ -1,0 +1,31 @@
+/* Rhodeside 各界面页（设置 / 引导 / 登录回跳）的全局样式入口。
+   顺序契约（scripts/check-design.mjs 把关）：前两条非注释语句必须依次是
+   tokens → @rakko/react/styles.css（后者已内含 state-layer、glass、layers）。
+   颜色 / 字体只用契约 token。 */
+
+@import '@rakko/design-system/tokens.css';
+@import '@rakko/react/styles.css';
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-neutral-9);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}

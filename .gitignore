@@ -1,0 +1,27 @@
+node_modules/
+.pnpm-store/
+web/dist/
+*.tsbuildinfo
+.DS_Store
+# 模型文件是你自己放的素材，不进仓库
+web/public/models/*
+!web/public/models/README.md
+!web/public/models/.gitkeep
+# 纯几何测试木偶是自己画的，可以进仓库
+!web/public/models/test-puppet/
+
+# 有授权的在线模型源文件：只放服务器，绝不进仓库
+models-private/
+
+# 构建产物
+.rhodeside-build
+macos/.build/
+macos/.build-web/
+
+# 任务过程产物：截图（可能含授权模型）、日志、推理流；brief / 报告保留
+tasks/*-shots/
+tasks/*-baseline/
+tasks/*.log
+tasks/*.out
+tasks/*.err
+tasks/__pycache__/

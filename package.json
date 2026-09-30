@@ -1,0 +1,32 @@
+{
+  "name": "spinestage",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.0.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "predev": "node scripts/scan-models.mjs",
+    "dev": "vite",
+    "check": "tsc --noEmit -p tsconfig.json && node scripts/check-design.mjs && node --test web/src/stage/combos.test.ts",
+    "sync-design": "bash scripts/sync-design.sh",
+    "mac:deploy": "bash macos/scripts/deploy.sh",
+    "mac:web": "bash macos/scripts/deploy.sh web",
+    "mac:dev": "node macos/scripts/dev.mjs",
+    "mac:test": "bash macos/scripts/deploy.sh test"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1"
+  }
+}

@@ -1,0 +1,5 @@
+commit=4fe91fe8428c0e4ab67edd15cd814ed83e08b0a8
+synced=2026-09-28T23:10:48+10:00
+source=https://github.com/KurisuRakko/Rakko-Design
+resolved_from=env:RAKKO_DESIGN_COMMIT
+ref=main

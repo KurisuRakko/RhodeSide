@@ -1,0 +1,824 @@
+[
+  {
+    "id": "wild-lappland",
+    "name": "荒芜拉普兰德",
+    "dir": "models-private/荒芜拉普兰德",
+    "default": true
+  },
+  {
+    "id": "char-103-angel",
+    "name": "能天使",
+    "dir": "models-private/能天使",
+    "source": "prts"
+  },
+  {
+    "id": "char-4179-monstr",
+    "name": "Mon3tr",
+    "dir": "models-private/Mon3tr",
+    "source": "prts"
+  },
+  {
+    "id": "char-113-cqbw",
+    "name": "W",
+    "dir": "models-private/W",
+    "source": "prts"
+  },
+  {
+    "id": "char-4182-oblvns",
+    "name": "丰川祥子",
+    "dir": "models-private/丰川祥子",
+    "source": "prts"
+  },
+  {
+    "id": "char-4145-ulpia",
+    "name": "乌尔比安",
+    "dir": "models-private/乌尔比安",
+    "source": "prts"
+  },
+  {
+    "id": "char-1015-aglna2",
+    "name": "予愿安洁莉娜",
+    "dir": "models-private/予愿安洁莉娜",
+    "source": "prts"
+  },
+  {
+    "id": "char-4082-qiubai",
+    "name": "仇白",
+    "dir": "models-private/仇白",
+    "source": "prts"
+  },
+  {
+    "id": "char-2023-ling",
+    "name": "令",
+    "dir": "models-private/令",
+    "source": "prts"
+  },
+  {
+    "id": "char-4087-ines",
+    "name": "伊内丝",
+    "dir": "models-private/伊内丝",
+    "source": "prts"
+  },
+  {
+    "id": "char-134-ifrit",
+    "name": "伊芙利特",
+    "dir": "models-private/伊芙利特",
+    "source": "prts"
+  },
+  {
+    "id": "char-427-vigil",
+    "name": "伺夜",
+    "dir": "models-private/伺夜",
+    "source": "prts"
+  },
+  {
+    "id": "char-2026-yu",
+    "name": "余",
+    "dir": "models-private/余",
+    "source": "prts"
+  },
+  {
+    "id": "char-4058-pepe",
+    "name": "佩佩",
+    "dir": "models-private/佩佩",
+    "source": "prts"
+  },
+  {
+    "id": "char-4194-rmixer",
+    "name": "信仰搅拌机",
+    "dir": "models-private/信仰搅拌机",
+    "source": "prts"
+  },
+  {
+    "id": "char-1013-chen2",
+    "name": "假日威龙陈",
+    "dir": "models-private/假日威龙陈",
+    "source": "prts"
+  },
+  {
+    "id": "char-250-phatom",
+    "name": "傀影",
+    "dir": "models-private/傀影",
+    "source": "prts"
+  },
+  {
+    "id": "char-1045-svash2",
+    "name": "凛御银灰",
+    "dir": "models-private/凛御银灰",
+    "source": "prts"
+  },
+  {
+    "id": "char-003-kalts",
+    "name": "凯尔希",
+    "dir": "models-private/凯尔希",
+    "source": "prts"
+  },
+  {
+    "id": "char-1052-kalts2",
+    "name": "凯尔希·思衡托",
+    "dir": "models-private/凯尔希·思衡托",
+    "source": "prts"
+  },
+  {
+    "id": "char-2013-cerber",
+    "name": "刻俄柏",
+    "dir": "models-private/刻俄柏",
+    "source": "prts"
+  },
+  {
+    "id": "char-426-billro",
+    "name": "卡涅利安",
+    "dir": "models-private/卡涅利安",
+    "source": "prts"
+  },
+  {
+    "id": "char-4228-closur",
+    "name": "可露希尔",
+    "dir": "models-private/可露希尔",
+    "source": "prts"
+  },
+  {
+    "id": "char-350-surtr",
+    "name": "史尔特尔",
+    "dir": "models-private/史尔特尔",
+    "source": "prts"
+  },
+  {
+    "id": "char-4039-horn",
+    "name": "号角",
+    "dir": "models-private/号角",
+    "source": "prts"
+  },
+  {
+    "id": "char-1043-leizi2",
+    "name": "司霆惊蛰",
+    "dir": "models-private/司霆惊蛰",
+    "source": "prts"
+  },
+  {
+    "id": "char-1032-excu2",
+    "name": "圣约送葬人",
+    "dir": "models-private/圣约送葬人",
+    "source": "prts"
+  },
+  {
+    "id": "char-1046-sbell2",
+    "name": "圣聆初雪",
+    "dir": "models-private/圣聆初雪",
+    "source": "prts"
+  },
+  {
+    "id": "char-245-cello",
+    "name": "塑心",
+    "dir": "models-private/塑心",
+    "source": "prts"
+  },
+  {
+    "id": "char-202-demkni",
+    "name": "塞雷娅",
+    "dir": "models-private/塞雷娅",
+    "source": "prts"
+  },
+  {
+    "id": "char-2015-dusk",
+    "name": "夕",
+    "dir": "models-private/夕",
+    "source": "prts"
+  },
+  {
+    "id": "char-4048-doroth",
+    "name": "多萝西",
+    "dir": "models-private/多萝西",
+    "source": "prts"
+  },
+  {
+    "id": "char-179-cgbird",
+    "name": "夜莺",
+    "dir": "models-private/夜莺",
+    "source": "prts"
+  },
+  {
+    "id": "char-4146-nymph",
+    "name": "妮芙",
+    "dir": "models-private/妮芙",
+    "source": "prts"
+  },
+  {
+    "id": "char-4138-narant",
+    "name": "娜仁图亚",
+    "dir": "models-private/娜仁图亚",
+    "source": "prts"
+  },
+  {
+    "id": "char-4212-nasti",
+    "name": "娜斯提",
+    "dir": "models-private/娜斯提",
+    "source": "prts"
+  },
+  {
+    "id": "char-291-aglina",
+    "name": "安洁莉娜",
+    "dir": "models-private/安洁莉娜",
+    "source": "prts"
+  },
+  {
+    "id": "char-264-f12yin",
+    "name": "山",
+    "dir": "models-private/山",
+    "source": "prts"
+  },
+  {
+    "id": "char-362-saga",
+    "name": "嵯峨",
+    "dir": "models-private/嵯峨",
+    "source": "prts"
+  },
+  {
+    "id": "char-4121-zuole",
+    "name": "左乐",
+    "dir": "models-private/左乐",
+    "source": "prts"
+  },
+  {
+    "id": "char-485-pallas",
+    "name": "帕拉斯",
+    "dir": "models-private/帕拉斯",
+    "source": "prts"
+  },
+  {
+    "id": "char-2014-nian",
+    "name": "年",
+    "dir": "models-private/年",
+    "source": "prts"
+  },
+  {
+    "id": "char-472-pasngr",
+    "name": "异客",
+    "dir": "models-private/异客",
+    "source": "prts"
+  },
+  {
+    "id": "char-1502-crosly",
+    "name": "弑君者",
+    "dir": "models-private/弑君者",
+    "source": "prts"
+  },
+  {
+    "id": "char-1039-thorn2",
+    "name": "引星棘刺",
+    "dir": "models-private/引星棘刺",
+    "source": "prts"
+  },
+  {
+    "id": "char-1023-ghost2",
+    "name": "归溟幽灵鲨",
+    "dir": "models-private/归溟幽灵鲨",
+    "source": "prts"
+  },
+  {
+    "id": "char-4026-vulpis",
+    "name": "忍冬",
+    "dir": "models-private/忍冬",
+    "source": "prts"
+  },
+  {
+    "id": "char-1051-headb2",
+    "name": "怒潮凛冬",
+    "dir": "models-private/怒潮凛冬",
+    "source": "prts"
+  },
+  {
+    "id": "char-112-siege",
+    "name": "推进之王",
+    "dir": "models-private/推进之王",
+    "source": "prts"
+  },
+  {
+    "id": "char-2012-typhon",
+    "name": "提丰",
+    "dir": "models-private/提丰",
+    "source": "prts"
+  },
+  {
+    "id": "char-4065-judge",
+    "name": "斥罪",
+    "dir": "models-private/斥罪",
+    "source": "prts"
+  },
+  {
+    "id": "char-1044-hsgma2",
+    "name": "斩业星熊",
+    "dir": "models-private/斩业星熊",
+    "source": "prts"
+  },
+  {
+    "id": "char-263-skadi",
+    "name": "斯卡蒂",
+    "dir": "models-private/斯卡蒂",
+    "source": "prts"
+  },
+  {
+    "id": "char-1041-angel2",
+    "name": "新约能天使",
+    "dir": "models-private/新约能天使",
+    "source": "prts"
+  },
+  {
+    "id": "char-197-poca",
+    "name": "早露",
+    "dir": "models-private/早露",
+    "source": "prts"
+  },
+  {
+    "id": "char-136-hsguma",
+    "name": "星熊",
+    "dir": "models-private/星熊",
+    "source": "prts"
+  },
+  {
+    "id": "char-2027-wang",
+    "name": "望",
+    "dir": "models-private/望",
+    "source": "prts"
+  },
+  {
+    "id": "char-4230-mcnist",
+    "name": "机械师",
+    "dir": "models-private/机械师",
+    "source": "prts"
+  },
+  {
+    "id": "char-4080-lin",
+    "name": "林",
+    "dir": "models-private/林",
+    "source": "prts"
+  },
+  {
+    "id": "char-293-thorns",
+    "name": "棘刺",
+    "dir": "models-private/棘刺",
+    "source": "prts"
+  },
+  {
+    "id": "char-416-zumama",
+    "name": "森蚺",
+    "dir": "models-private/森蚺",
+    "source": "prts"
+  },
+  {
+    "id": "char-474-glady",
+    "name": "歌蕾蒂娅",
+    "dir": "models-private/歌蕾蒂娅",
+    "source": "prts"
+  },
+  {
+    "id": "char-4011-lessng",
+    "name": "止颂",
+    "dir": "models-private/止颂",
+    "source": "prts"
+  },
+  {
+    "id": "char-437-mizuki",
+    "name": "水月",
+    "dir": "models-private/水月",
+    "source": "prts"
+  },
+  {
+    "id": "char-311-mudrok",
+    "name": "泥岩",
+    "dir": "models-private/泥岩",
+    "source": "prts"
+  },
+  {
+    "id": "char-4042-lumen",
+    "name": "流明",
+    "dir": "models-private/流明",
+    "source": "prts"
+  },
+  {
+    "id": "char-1034-jesca2",
+    "name": "涤火杰西卡",
+    "dir": "models-private/涤火杰西卡",
+    "source": "prts"
+  },
+  {
+    "id": "char-1031-slent2",
+    "name": "淬羽赫默",
+    "dir": "models-private/淬羽赫默",
+    "source": "prts"
+  },
+  {
+    "id": "char-400-weedy",
+    "name": "温蒂",
+    "dir": "models-private/温蒂",
+    "source": "prts"
+  },
+  {
+    "id": "char-1047-halo2",
+    "name": "溯光星源",
+    "dir": "models-private/溯光星源",
+    "source": "prts"
+  },
+  {
+    "id": "char-377-gdglow",
+    "name": "澄闪",
+    "dir": "models-private/澄闪",
+    "source": "prts"
+  },
+  {
+    "id": "char-456-ash",
+    "name": "灰烬",
+    "dir": "models-private/灰烬",
+    "source": "prts"
+  },
+  {
+    "id": "char-206-gnosis",
+    "name": "灵知",
+    "dir": "models-private/灵知",
+    "source": "prts"
+  },
+  {
+    "id": "char-1040-blaze2",
+    "name": "烛煌",
+    "dir": "models-private/烛煌",
+    "source": "prts"
+  },
+  {
+    "id": "char-420-flamtl",
+    "name": "焰尾",
+    "dir": "models-private/焰尾",
+    "source": "prts"
+  },
+  {
+    "id": "char-1020-reed2",
+    "name": "焰影苇草",
+    "dir": "models-private/焰影苇草",
+    "source": "prts"
+  },
+  {
+    "id": "char-1048-orchd2",
+    "name": "焰狐龙梓兰",
+    "dir": "models-private/焰狐龙梓兰",
+    "source": "prts"
+  },
+  {
+    "id": "char-017-huang",
+    "name": "煌",
+    "dir": "models-private/煌",
+    "source": "prts"
+  },
+  {
+    "id": "char-4064-mlynar",
+    "name": "玛恩纳",
+    "dir": "models-private/玛恩纳",
+    "source": "prts"
+  },
+  {
+    "id": "char-4141-marcil",
+    "name": "玛露西尔",
+    "dir": "models-private/玛露西尔",
+    "source": "prts"
+  },
+  {
+    "id": "char-4235-thumpy",
+    "name": "珊比",
+    "dir": "models-private/珊比",
+    "source": "prts"
+  },
+  {
+    "id": "char-1033-swire2",
+    "name": "琳琅诗怀雅",
+    "dir": "models-private/琳琅诗怀雅",
+    "source": "prts"
+  },
+  {
+    "id": "char-479-sleach",
+    "name": "琴柳",
+    "dir": "models-private/琴柳",
+    "source": "prts"
+  },
+  {
+    "id": "char-423-blemsh",
+    "name": "瑕光",
+    "dir": "models-private/瑕光",
+    "source": "prts"
+  },
+  {
+    "id": "char-4195-radian",
+    "name": "电弧",
+    "dir": "models-private/电弧",
+    "source": "prts"
+  },
+  {
+    "id": "char-4072-ironmn",
+    "name": "白铁",
+    "dir": "models-private/白铁",
+    "source": "prts"
+  },
+  {
+    "id": "char-1026-gvial2",
+    "name": "百炼嘉维尔",
+    "dir": "models-private/百炼嘉维尔",
+    "source": "prts"
+  },
+  {
+    "id": "char-4204-mantra",
+    "name": "真言",
+    "dir": "models-private/真言",
+    "source": "prts"
+  },
+  {
+    "id": "char-332-archet",
+    "name": "空弦",
+    "dir": "models-private/空弦",
+    "source": "prts"
+  },
+  {
+    "id": "char-1016-agoat2",
+    "name": "纯烬艾雅法拉",
+    "dir": "models-private/纯烬艾雅法拉",
+    "source": "prts"
+  },
+  {
+    "id": "char-4217-makoto",
+    "name": "结城理",
+    "dir": "models-private/结城理",
+    "source": "prts"
+  },
+  {
+    "id": "char-1035-wisdel",
+    "name": "维什戴尔",
+    "dir": "models-private/维什戴尔",
+    "source": "prts"
+  },
+  {
+    "id": "char-4226-veen",
+    "name": "维伊",
+    "dir": "models-private/维伊",
+    "source": "prts"
+  },
+  {
+    "id": "char-1019-siege2",
+    "name": "维娜·维多利亚",
+    "dir": "models-private/维娜·维多利亚",
+    "source": "prts"
+  },
+  {
+    "id": "char-4056-titi",
+    "name": "缇缇",
+    "dir": "models-private/缇缇",
+    "source": "prts"
+  },
+  {
+    "id": "char-249-mlyss",
+    "name": "缪尔赛思",
+    "dir": "models-private/缪尔赛思",
+    "source": "prts"
+  },
+  {
+    "id": "char-1014-nearl2",
+    "name": "耀骑士临光",
+    "dir": "models-private/耀骑士临光",
+    "source": "prts"
+  },
+  {
+    "id": "char-322-lmlee",
+    "name": "老鲤",
+    "dir": "models-private/老鲤",
+    "source": "prts"
+  },
+  {
+    "id": "char-4009-irene",
+    "name": "艾丽妮",
+    "dir": "models-private/艾丽妮",
+    "source": "prts"
+  },
+  {
+    "id": "char-4123-ela",
+    "name": "艾拉",
+    "dir": "models-private/艾拉",
+    "source": "prts"
+  },
+  {
+    "id": "char-180-amgoat",
+    "name": "艾雅法拉",
+    "dir": "models-private/艾雅法拉",
+    "source": "prts"
+  },
+  {
+    "id": "char-213-mostma",
+    "name": "莫斯提马",
+    "dir": "models-private/莫斯提马",
+    "source": "prts"
+  },
+  {
+    "id": "char-4117-ray",
+    "name": "莱伊",
+    "dir": "models-private/莱伊",
+    "source": "prts"
+  },
+  {
+    "id": "char-300-phenxi",
+    "name": "菲亚梅塔",
+    "dir": "models-private/菲亚梅塔",
+    "source": "prts"
+  },
+  {
+    "id": "char-4193-lemuen",
+    "name": "蕾缪安",
+    "dir": "models-private/蕾缪安",
+    "source": "prts"
+  },
+  {
+    "id": "char-4098-vvana",
+    "name": "薇薇安娜",
+    "dir": "models-private/薇薇安娜",
+    "source": "prts"
+  },
+  {
+    "id": "char-4229-aphris",
+    "name": "谬因",
+    "dir": "models-private/谬因",
+    "source": "prts"
+  },
+  {
+    "id": "char-4037-demetr",
+    "name": "贝洛内",
+    "dir": "models-private/贝洛内",
+    "source": "prts"
+  },
+  {
+    "id": "char-1050-chen3",
+    "name": "赤刃明霄陈",
+    "dir": "models-private/赤刃明霄陈",
+    "source": "prts"
+  },
+  {
+    "id": "char-4088-hodrer",
+    "name": "赫德雷",
+    "dir": "models-private/赫德雷",
+    "source": "prts"
+  },
+  {
+    "id": "char-188-helage",
+    "name": "赫拉格",
+    "dir": "models-private/赫拉格",
+    "source": "prts"
+  },
+  {
+    "id": "char-430-fartth",
+    "name": "远牙",
+    "dir": "models-private/远牙",
+    "source": "prts"
+  },
+  {
+    "id": "char-391-rosmon",
+    "name": "迷迭香",
+    "dir": "models-private/迷迭香",
+    "source": "prts"
+  },
+  {
+    "id": "char-4133-logos",
+    "name": "逻各斯",
+    "dir": "models-private/逻各斯",
+    "source": "prts"
+  },
+  {
+    "id": "char-4202-haruka",
+    "name": "遥",
+    "dir": "models-private/遥",
+    "source": "prts"
+  },
+  {
+    "id": "char-1042-phatm2",
+    "name": "酒神",
+    "dir": "models-private/酒神",
+    "source": "prts"
+  },
+  {
+    "id": "char-2024-chyue",
+    "name": "重岳",
+    "dir": "models-private/重岳",
+    "source": "prts"
+  },
+  {
+    "id": "char-358-lisa",
+    "name": "铃兰",
+    "dir": "models-private/铃兰",
+    "source": "prts"
+  },
+  {
+    "id": "char-172-svrash",
+    "name": "银灰",
+    "dir": "models-private/银灰",
+    "source": "prts"
+  },
+  {
+    "id": "char-4116-blkkgt",
+    "name": "锏",
+    "dir": "models-private/锏",
+    "source": "prts"
+  },
+  {
+    "id": "char-147-shining",
+    "name": "闪灵",
+    "dir": "models-private/闪灵",
+    "source": "prts"
+  },
+  {
+    "id": "char-225-haak",
+    "name": "阿",
+    "dir": "models-private/阿",
+    "source": "prts"
+  },
+  {
+    "id": "char-4132-ascln",
+    "name": "阿斯卡纶",
+    "dir": "models-private/阿斯卡纶",
+    "source": "prts"
+  },
+  {
+    "id": "char-010-chen",
+    "name": "陈",
+    "dir": "models-private/陈",
+    "source": "prts"
+  },
+  {
+    "id": "char-4010-etlchi",
+    "name": "隐德来希",
+    "dir": "models-private/隐德来希",
+    "source": "prts"
+  },
+  {
+    "id": "char-4027-heyak",
+    "name": "霍尔海雅",
+    "dir": "models-private/霍尔海雅",
+    "source": "prts"
+  },
+  {
+    "id": "char-222-bpipe",
+    "name": "风笛",
+    "dir": "models-private/风笛",
+    "source": "prts"
+  },
+  {
+    "id": "char-4134-cetsyr",
+    "name": "魔王",
+    "dir": "models-private/魔王",
+    "source": "prts"
+  },
+  {
+    "id": "char-4055-bgsnow",
+    "name": "鸿雪",
+    "dir": "models-private/鸿雪",
+    "source": "prts"
+  },
+  {
+    "id": "char-1029-yato2",
+    "name": "麒麟R夜刀",
+    "dir": "models-private/麒麟R夜刀",
+    "source": "prts"
+  },
+  {
+    "id": "char-248-mgllan",
+    "name": "麦哲伦",
+    "dir": "models-private/麦哲伦",
+    "source": "prts"
+  },
+  {
+    "id": "char-2025-shu",
+    "name": "黍",
+    "dir": "models-private/黍",
+    "source": "prts"
+  },
+  {
+    "id": "char-340-shwaz",
+    "name": "黑",
+    "dir": "models-private/黑",
+    "source": "prts"
+  },
+  {
+    "id": "char-4046-ebnhlz",
+    "name": "黑键",
+    "dir": "models-private/黑键",
+    "source": "prts"
+  },
+  {
+    "id": "char-450-necras",
+    "name": "死芒",
+    "dir": "models-private/死芒",
+    "source": "prts"
+  },
+  {
+    "id": "char-1028-texas2",
+    "name": "缄默德克萨斯",
+    "dir": "models-private/缄默德克萨斯",
+    "source": "prts"
+  },
+  {
+    "id": "char-1012-skadi2",
+    "name": "浊心斯卡蒂",
+    "dir": "models-private/浊心斯卡蒂",
+    "source": "prts"
+  }
+]

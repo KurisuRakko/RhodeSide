@@ -1,0 +1,26 @@
+/* 登录回跳页。颜色 / 字体只用 Rakko Design 的 token。 */
+
+.rs-callback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 72px 24px;
+}
+
+.rs-callback__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.rs-callback__detail {
+  margin: 0 0 8px;
+  color: var(--color-neutral-7);
+}
+
+.rs-callback__detail[data-error] {
+  color: var(--color-error);
+}

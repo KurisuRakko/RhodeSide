@@ -1,0 +1,3 @@
+# pnpm 11 的配置入口（pnpm 专属设置不再从 .npmrc 读取）。
+# store 放在项目内：agent shell 的 HOME 可能只读；.pnpm-store/ 已被 .gitignore 挡住。
+storeDir: .pnpm-store

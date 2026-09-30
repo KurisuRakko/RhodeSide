@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rhodeside 桌宠</title>
+    <!-- Rhodeside（macOS 桌宠）每只小人一个透明窗口加载这一页：只有画布，没有界面。背景必须透明。 -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+    <script src="./lib/spine/spine-webgl.js"></script>
+  </head>
+  <body>
+    <canvas id="pet"></canvas>
+    <script type="module" src="/src/pet/main.ts"></script>
+  </body>
+</html>

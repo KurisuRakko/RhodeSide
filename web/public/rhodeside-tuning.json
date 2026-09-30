@@ -1,0 +1,11 @@
+{
+  "idle": [2.5, 6],
+  "sit": [5, 10],
+  "sleep": [8, 16],
+  "walkPause": [0.4, 1.2],
+  "walkChance": 0.6,
+  "sitChance": 0.15,
+  "sleepChance": 0.1,
+  "edgeJumpChance": 0.2,
+  "hoverAlpha": 0.25
+}
