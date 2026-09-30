@@ -8,9 +8,11 @@
  * （VoiceTable 模板：标题N / 台词N / 语音N / 触发类型N，路径=各语种目录）→ torappu 上的 wav。
  * 只收基建里会播的三类（进驻设施 / 戳一下 / 信赖触摸）；语种优先中文普通话，其次日语，都没有（联动干员）就用第一个，
  * 韩语和英语不下。不带 --only 时跑 macos/models.json 里全部模型（目录用各条目的 dir）。已下载的不重下（换了语种会重下）。
- * 目录布局：voice/voice.json + voice/cn_0xx.wav（前端 web/src/pet/voice.ts 读 voice.json）。
+ * PRTS 给的是 44.1kHz 的 WAV（一个干员约 1MB），下载后用 ffmpeg 转成 MP3（约 1/10 大小），只发布 MP3。
+ * 目录布局：voice/voice.json + voice/cn_0xx.mp3（前端 web/src/pet/voice.ts 读 voice.json）。
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -55,6 +57,13 @@ function writeAtomic(file, data) {
   const tmp = join(dirname(file), `.${basename(file)}.tmp`)
   writeFileSync(tmp, data)
   renameSync(tmp, file)
+}
+
+/** WAV → MP3（单声道 VBR，人声够用）；先写到点开头的临时文件再改名 */
+function toMp3(wav, mp3) {
+  const tmp = join(dirname(mp3), `.${basename(mp3)}.tmp`)
+  execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', wav, '-ac', '1', '-codec:a', 'libmp3lame', '-q:a', '5', '-f', 'mp3', tmp])
+  renameSync(tmp, mp3)
 }
 
 /** 从 i 处的 `{{` 开始找配对的 `}}`，返回它后面的位置 */
@@ -155,7 +164,8 @@ async function fetchVoice(name, id, modelDir) {
     if (!n || !TRIGGERS.includes(p[k])) continue
     const file = (p[`语音${n}`] ?? '').toLowerCase()
     if (!/^[\w-]+\.wav$/.test(file)) continue
-    items.push({ key: file.replace(/\.wav$/, ''), title: plain(p[`标题${n}`] ?? ''), trigger: p[k], file, text: word(p[`台词${n}`] ?? '', '中文') })
+    const key = file.replace(/\.wav$/, '')
+    items.push({ key, title: plain(p[`标题${n}`] ?? ''), trigger: p[k], file: `${key}.mp3`, src: file, text: word(p[`台词${n}`] ?? '', '中文') })
   }
   if (items.length === 0) return { skip: '没有基建语音' }
   if (dry) return { items, lang, files: 0 }
@@ -166,20 +176,45 @@ async function fetchVoice(name, id, modelDir) {
     before = JSON.parse(readFileSync(join(dir, 'voice.json'), 'utf8')).lang
   } catch {}
   let files = 0
+  const has = (f) => existsSync(f) && statSync(f).size > 0
   for (const it of items) {
     const local = join(dir, it.file)
     // 同名文件不同语种（联动干员后来补了中文配音）：语种变了就重下
-    if (before === lang.lang && existsSync(local) && statSync(local).size > 0) continue
-    const data = await get(`${AUDIO}/${lang.dir}/${it.file}`, 'bin')
-    if (!data) throw new Error(`缺文件 ${AUDIO}/${lang.dir}/${it.file}`)
-    writeAtomic(local, data)
+    if (before === lang.lang && has(local)) continue
+    // 以前的版本直接存 WAV：语种没变就拿本地的转，不重下
+    const oldWav = join(dir, it.src)
+    const wav = join(dir, `.${it.src}.dl`)
+    let converted = false
+    if (before === lang.lang && has(oldWav)) {
+      try {
+        toMp3(oldWav, local)
+        converted = true
+      } catch {
+        rmSync(oldWav, { force: true }) // 本地的坏了：删掉重下，不然每天都卡在这
+      }
+    }
+    if (!converted) {
+      const data = await get(`${AUDIO}/${lang.dir}/${it.src}`, 'bin')
+      if (!data) throw new Error(`缺文件 ${AUDIO}/${lang.dir}/${it.src}`)
+      writeAtomic(wav, data)
+      try {
+        toMp3(wav, local)
+      } finally {
+        rmSync(wav, { force: true })
+      }
+      await sleep(300)
+    }
     files++
-    await sleep(300)
   }
-  writeAtomic(join(dir, 'voice.json'), `${JSON.stringify({ charId: id, lang: lang.lang, items }, null, 2)}\n`)
-  // PRTS 上已经没有的旧语音：清掉
+  const manifest = items.map(({ src, ...rest }) => rest)
+  writeAtomic(join(dir, 'voice.json'), `${JSON.stringify({ charId: id, lang: lang.lang, items: manifest }, null, 2)}\n`)
+  // PRTS 上已经没有的旧语音、转成 MP3 以前的 WAV：清掉
   const keep = new Set(['voice.json', ...items.map((x) => x.file)])
-  for (const f of readdirSync(dir)) if (!keep.has(f) && !f.startsWith('.')) rmSync(join(dir, f), { force: true })
+  // 以及 ffmpeg 失败 / 被杀掉时留下的临时文件（点开头，不会被发布，但会一直占着）
+  for (const f of readdirSync(dir)) {
+    if (keep.has(f)) continue
+    if (!f.startsWith('.') || /\.(tmp|dl)$/.test(f)) rmSync(join(dir, f), { force: true })
+  }
   return { items, lang, files }
 }
 

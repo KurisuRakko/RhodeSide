@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 每天由 systemd 用户定时器 rhodeside-prts.timer 跑：从 PRTS 拉新六星 / 新时装，和上次成功发布时不一样就重新签名发布模型目录。
+# 每天由 systemd 用户定时器 rhodeside-prts.timer 跑：从 PRTS 拉新六星 / 新时装 / 基建语音，和上次成功发布时不一样就重新签名发布模型目录。
 # App 只会在模型库里看到新条目，不会自动下载（已装的模型出了新版本会自动更新）。
 set -euo pipefail
 export LC_ALL=C
@@ -22,6 +22,8 @@ fingerprint() {
 
 # 单个干员失败只记日志，不影响发布其余的
 node "$HERE/fetch-prts.mjs" || echo "fetch-prts 退出码 $?，继续按现有文件发布"
+# 基建语音（新干员、新补的配音）；已有的不重下
+node "$HERE/fetch-voice.mjs" || echo "fetch-voice 退出码 $?，继续按现有文件发布"
 now="$(fingerprint)"
 last="$(cat "$STATE/prts-published.sha" 2>/dev/null || true)"
 if [[ "$now" == "$last" ]]; then
