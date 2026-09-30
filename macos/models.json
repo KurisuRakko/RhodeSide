@@ -825,6 +825,7 @@
     "id": "char-4017-puzzle",
     "name": "谜图",
     "dir": "models-private/谜图",
-    "source": "prts"
+    "source": "prts",
+    "voiceLang": "日语"
   }
 ]

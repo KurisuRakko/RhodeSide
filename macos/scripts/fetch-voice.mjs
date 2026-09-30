@@ -7,7 +7,7 @@
  * 流程：干员名 → char id（models-private/prts-index.json，fetch-prts.mjs 维护）→「<名>/语音记录」的 wikitext
  * （VoiceTable 模板：标题N / 台词N / 语音N / 触发类型N，路径=各语种目录）→ torappu 上的 wav。
  * 只收基建里会播的三类（进驻设施 / 戳一下 / 信赖触摸）；语种优先中文普通话，其次日语，都没有（联动干员）就用第一个，
- * 韩语和英语不下。不带 --only 时跑 macos/models.json 里全部模型（目录用各条目的 dir）。已下载的不重下（换了语种会重下）。
+ * 韩语和英语不下；models.json 条目里写 "voiceLang": "日语" 可以指定语种（比如谜图用日语）。不带 --only 时跑 macos/models.json 里全部模型（目录用各条目的 dir）。已下载的不重下（换了语种会重下）。
  * PRTS 给的是 44.1kHz 的 WAV（一个干员约 1MB），下载后用 ffmpeg 转成 MP3（约 1/10 大小），只发布 MP3。
  * 目录布局：voice/voice.json + voice/cn_0xx.mp3（前端 web/src/pet/voice.ts 读 voice.json）。
  */
@@ -133,14 +133,14 @@ async function voiceTable(name) {
   return text ? params(text) : null
 }
 
-/** 路径=日语:voice/char_x,中文-普通话:voice_cn/char_x,…  → 选一个语种 */
-function pickLang(path) {
+/** 路径=日语:voice/char_x,中文-普通话:voice_cn/char_x,…  → 选一个语种（prefer 是 models.json 里指定的） */
+function pickLang(path, prefer) {
   const all = (path ?? '')
     .split(',')
     .map((x) => x.split(':'))
     .filter((x) => x.length === 2 && x[1].trim())
     .map(([lang, dir]) => ({ lang: lang.trim(), dir: dir.trim() }))
-  for (const l of LANGS) {
+  for (const l of prefer ? [prefer, ...LANGS] : LANGS) {
     const hit = all.find((x) => x.lang === l)
     if (hit) return hit
   }
@@ -153,11 +153,12 @@ async function charId(name) {
   return /\|干员id=(char_\w+)/.exec(d.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content ?? '')?.[1] ?? null
 }
 
-async function fetchVoice(name, id, modelDir) {
+async function fetchVoice(name, id, modelDir, prefer) {
   const p = await voiceTable(name)
   if (!p) return { skip: 'PRTS 上没有语音记录' }
-  const lang = pickLang(p['路径'])
+  const lang = pickLang(p['路径'], prefer)
   if (!lang) return { skip: `语种不认识：${p['路径'] ?? '（没有路径）'}` }
+  if (prefer && lang.lang !== prefer) console.log(`[voice] ${name}：PRTS 上没有 voiceLang 指定的「${prefer}」，改用${lang.lang}`)
   const items = []
   for (const k of Object.keys(p)) {
     const n = /^触发类型(\d+)$/.exec(k)?.[1]
@@ -231,12 +232,13 @@ for (const name of names) {
       skipped.push(`${name}：PRTS 上查不到干员 id`)
       continue
     }
-    const modelDir = resolve(ROOT, list.find((m) => m.name === name)?.dir ?? join('models-private', name))
+    const entry = list.find((m) => m.name === name)
+    const modelDir = resolve(ROOT, entry?.dir ?? join('models-private', name))
     if (!existsSync(modelDir)) {
       skipped.push(`${name}：还没有模型目录 ${modelDir}`)
       continue
     }
-    const r = await fetchVoice(name, id, modelDir)
+    const r = await fetchVoice(name, id, modelDir, entry?.voiceLang)
     if (r.skip) {
       skipped.push(`${name}：${r.skip}`)
       continue
