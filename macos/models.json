@@ -820,5 +820,11 @@
     "name": "浊心斯卡蒂",
     "dir": "models-private/浊心斯卡蒂",
     "source": "prts"
+  },
+  {
+    "id": "char-4017-puzzle",
+    "name": "谜图",
+    "dir": "models-private/谜图",
+    "source": "prts"
   }
 ]

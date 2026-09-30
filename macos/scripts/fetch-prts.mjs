@@ -8,6 +8,7 @@
  * models-private/prts-index.json）→ torappu 的 meta.json（时装 × 正面/背面/基建）→ .skel/.atlas/贴图。
  * 目录布局和 PRTS 一样：<时装文件夹>/<front|back|build>/<文件>，前端 loader 直接认。
  * 已下载且大小对得上的文件不重下；新干员上线后重跑一遍就行。只收 Spine 3.8 的骨骼。
+ * 不带 --only 时，除了该星级全员，models.json 里其他 source: 'prts' 的干员（用 --only 单独加进来的，比如五星谜图）也一起更新。
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -226,7 +227,8 @@ async function fetchModel(name, id) {
 const index = existsSync(INDEX) ? JSON.parse(readFileSync(INDEX, 'utf8')) : {}
 const list = JSON.parse(readFileSync(LIST, 'utf8'))
 const names = only.length ? only : await operators()
-console.log(`[prts] ${rarity} 星 ${names.length} 名`)
+if (!only.length) for (const m of list) if (m.source === 'prts' && !names.includes(m.name)) names.push(m.name)
+console.log(only.length ? `[prts] 指定 ${names.length} 名` : `[prts] ${rarity} 星 + 单独加入的 共 ${names.length} 名`)
 await charIds(names, index)
 writeJSON(INDEX, index, 1)
 const skipped = []
