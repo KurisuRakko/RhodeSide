@@ -3,7 +3,7 @@ import XCTest
 
 @testable import PetCore
 
-/// 战斗形态和套组播放（认套组在网页 combos.ts，有自己的测试）
+/// 战斗形态和连招播放（认连招在网页 combos.ts，有自己的测试）
 final class BattleTests: XCTestCase {
     let screen = ScreenInfo(id: 1, frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 887))
     var ground: Platform { Platform(kind: .ground(screen: 1), segment: Segment(y: 70, minX: 0, maxX: 1512), anchorX: 0) }

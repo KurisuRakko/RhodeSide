@@ -1,14 +1,15 @@
 /**
  * 「桌宠」页：一只一只地管。上面选哪只，下面分「模型」「显示」「活动」「立即动作」四组（系统设置式：左边名字、右边控件）。
  * 换模型 / 时装 / 形态走整页的选模型界面（ModelPicker），和模型库一样左边列表、右边预览。
- * 战斗形态（正面 / 背面）不走动：「活动」换成循环播的动作下拉框，「立即动作」换成套组动作按钮。
+ * 战斗形态（正面 / 背面）不走动：「活动」换成循环播的动作下拉框，「立即动作」换成连招按钮。
  * 两种形态的「立即动作」里都有「转身」。
+ * 最上面是「套组」：把桌面上现在这几只存成一组（比如一对 CP），召出时替换全部桌宠；同组的会结伴走、互相找、一起反应。
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Button, FilterChip } from '@rakko/react'
+import { Button, Field, FilterChip } from '@rakko/react'
 
 import * as I from '../ui/icons.tsx'
-import { native, send, type Activity, type Behavior, type CatalogModel, type ModelInfo, type NativeState, type PetConfig, type PetSummary } from './bridge.ts'
+import { native, send, type Activity, type Behavior, type CatalogModel, type ModelInfo, type NativeState, type PetConfig, type PetSummary, type Team } from './bridge.ts'
 import { defaultGroup, ModelPicker } from './ModelPicker.tsx'
 import { groupLabel, useSkinNames } from './skins.ts'
 import { Choice, Group, nearest, Pick, Row, SwitchRow, useConfirm } from './ui.tsx'
@@ -86,6 +87,8 @@ export function PetsPage({ state }: { state: NativeState }) {
       <header className="rs-page__head">
         <h1 className="rs-title">桌宠</h1>
       </header>
+
+      {config.teams && <Teams teams={config.teams} pets={pets} />}
 
       <div className="rs-pets" role="group" aria-label="选择桌宠">
         {pets.map((p, i) => (
@@ -233,7 +236,7 @@ function BaseControls({ pet, summary }: { pet: PetConfig; summary?: PetSummary }
   )
 }
 
-/** 战斗形态：待机循环的动画（下拉框）+ 套组动作按钮；点一下桌宠会播攻击 */
+/** 战斗形态：待机循环的动画（下拉框）+ 连招按钮；点一下桌宠会播攻击 */
 function BattleControls({ pet, summary }: { pet: PetConfig; summary: PetSummary }) {
   const animations = summary.animations ?? []
   const combos = summary.combos ?? []
@@ -247,7 +250,7 @@ function BattleControls({ pet, summary }: { pet: PetConfig; summary: PetSummary 
       </Group>
       <Group title="立即动作">
         {combos.length > 0 ? (
-          <Row label="套组动作" hint={summary.standing ? '按顺序播一遍，播完回到循环动作' : '站稳以后才能做动作'}>
+          <Row label="连招" hint={summary.standing ? '按顺序播一遍，播完回到循环动作' : '站稳以后才能做动作'}>
             {combos.map((c) => (
               <Button key={c.id} disabled={!summary.standing} onClick={() => send({ type: 'playCombo', id: pet.id, combo: c.id })}>
                 {c.label}
@@ -271,5 +274,118 @@ function TurnButton({ pet, summary }: { pet: PetConfig; summary?: PetSummary }) 
     <Button disabled={!summary?.standing} onClick={() => send({ type: 'turn', id: pet.id })}>
       转身
     </Button>
+  )
+}
+
+/* ------------------------------------------------------------------ 套组 */
+
+/** 套组列表 + 「存为套组」。老版本 App 的配置里没有 teams，整组不显示 */
+function Teams({ teams, pets }: { teams: Team[]; pets: PetConfig[] }) {
+  const [draft, setDraft] = useState('')
+  // 桌面上联动着的桌宠都来自同一个套组：它就是「当前」套组（后来手动加的不联动，不影响）
+  const links = new Set(pets.map((p) => p.link).filter((l): l is string => !!l))
+  const current = links.size === 1 ? teams.find((t) => links.has(t.id)) : undefined
+  // 桌面和当前套组存的一模一样：召出别的不用确认，当前那组显示「重新召出」而不是「保存修改」
+  const unchanged = !!current && sameMembers(pets, current.members)
+  const save = () => {
+    send({ type: 'saveTeam', name: draft.trim() })
+    setDraft('')
+  }
+  return (
+    <Group title="套组">
+      {teams.map((t) => (
+        <TeamRow key={t.id} team={t} current={t === current} changed={t === current && !unchanged} replacing={pets.length > 0 && !unchanged} />
+      ))}
+      <form
+        className="rs-line"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (pets.length > 0) save()
+        }}
+      >
+        <div className="rs-line__text">
+          <div className="rs-line__label">存为新套组</div>
+          <div className="rs-line__hint">
+            {pets.length > 0 ? `把桌面上现在的 ${pets.length} 只存成一组；召出时替换全部桌宠，同组的会结伴走、互相找、一起反应` : '桌面上还没有桌宠'}
+          </div>
+        </div>
+        <div className="rs-line__control">
+          <Field.Root>
+            <Field.Control placeholder={`套组 ${teams.length + 1}`} value={draft} onChange={(e) => setDraft((e.target as HTMLInputElement).value)} />
+          </Field.Root>
+          <Button type="submit" disabled={pets.length === 0}>
+            保存
+          </Button>
+        </div>
+      </form>
+    </Group>
+  )
+}
+
+/** 比较两组桌宠的外观和行为参数（不管 id、link） */
+function sameMembers(a: PetConfig[], b: PetConfig[]) {
+  const strip = (list: PetConfig[]) =>
+    JSON.stringify(list.map((p) => [p.model, p.outfit ?? null, p.group ?? null, p.height, p.stride, p.pma, p.activity, p.hoverFade, p.opacity, p.pose ?? null]))
+  return strip(a) === strip(b)
+}
+
+/** 一个套组：名字 + 成员；召出（桌面是这组且改过时是「保存修改」）/ 改名 / 删除 */
+function TeamRow({ team, current, changed, replacing }: { team: Team; current: boolean; changed: boolean; replacing: boolean }) {
+  const [renaming, setRenaming] = useState(false)
+  const [name, setName] = useState(team.name)
+  const [delArmed, confirmDelete] = useConfirm()
+  // 桌面上有没存进套组的桌宠或改动时，召出会把它们换掉：点两次
+  const [sumArmed, confirmSummon] = useConfirm()
+  const members = team.members.map((m) => m.model).join('、') || '（空）'
+
+  if (renaming) {
+    return (
+      <form
+        className="rs-line"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (name.trim()) send({ type: 'renameTeam', id: team.id, name: name.trim() })
+          setRenaming(false)
+        }}
+      >
+        <div className="rs-line__text">
+          <div className="rs-line__label">改名</div>
+          <div className="rs-line__hint">{members}</div>
+        </div>
+        <div className="rs-line__control">
+          <Field.Root>
+            <Field.Control aria-label="套组名字" autoFocus value={name} onChange={(e) => setName((e.target as HTMLInputElement).value)} />
+          </Field.Root>
+          <Button type="submit" disabled={!name.trim()}>
+            确定
+          </Button>
+          <Button variant="ghost" onClick={() => setRenaming(false)}>
+            取消
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <Row label={team.name} hint={current ? `桌面上是这一组${changed ? '（有改动）' : ''} · ${members}` : members}>
+      {changed ? (
+        <Button onClick={() => send({ type: 'overwriteTeam', id: team.id })}>保存修改</Button>
+      ) : (
+        <Button onClick={() => (!replacing || confirmSummon()) && send({ type: 'summonTeam', id: team.id })}>{sumArmed ? '替换桌面上的？' : current ? '重新召出' : '召出'}</Button>
+      )}
+      <Button
+        variant="ghost"
+        onClick={() => {
+          setName(team.name)
+          setRenaming(true)
+        }}
+      >
+        改名
+      </Button>
+      <Button variant="danger" onClick={() => confirmDelete() && send({ type: 'deleteTeam', id: team.id })}>
+        <I.IconTrash /> {delArmed ? '确认删除' : '删除'}
+      </Button>
+    </Row>
   )
 }

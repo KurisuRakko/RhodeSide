@@ -224,6 +224,16 @@ extension SettingsController: WKScriptMessageHandler {
         case "perform":
             guard let raw = b.string("behavior"), let behavior = Behavior(rawValue: raw) else { break }
             for pet in manager.pets where b.string("id") == nil || pet.config.id == b.string("id") { pet.perform(behavior) }
+        case "saveTeam":
+            if !manager.saveTeam(name: b.string("name")) { toast("桌面上还没有桌宠") }
+        case "overwriteTeam":
+            if let id = b.string("id") { manager.overwriteTeam(id) }
+        case "summonTeam":
+            if let id = b.string("id") { manager.summonTeam(id) }
+        case "renameTeam":
+            if let id = b.string("id") { manager.renameTeam(id, name: b.string("name")) }
+        case "deleteTeam":
+            if let id = b.string("id") { manager.deleteTeam(id) }
         case "turn":
             for pet in manager.pets where pet.config.id == b.string("id") { pet.turn() }
         case "playCombo":

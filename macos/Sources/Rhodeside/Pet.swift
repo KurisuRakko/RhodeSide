@@ -56,7 +56,7 @@ final class Pet: NSObject {
     /// 悬停透明：当前的淡出程度（0 = 正常，1 = 完全淡到 hoverAlpha），逐帧逼近目标
     private var fade: Double = 0
     private var reportedBehavior: Behavior?
-    /// 战斗形态的套组动作（控制面板的按钮）；基建形态是空的
+    /// 战斗形态的连招（控制面板的按钮）；基建形态是空的
     private(set) var combos: [Combo] = []
     /// 帧间隔统计（调试用，debug/state 读完清零）：帧数、超过 1.5 倍预期间隔的次数、最大间隔
     private var tickCount = 0
@@ -185,7 +185,7 @@ final class Pet: NSObject {
         return p
     }
 
-    /// 控制面板的套组按钮
+    /// 控制面板的连招按钮
     @discardableResult
     func playCombo(_ id: String) -> Bool {
         guard let c = combos.first(where: { $0.id == id }) else { return false }
@@ -252,7 +252,7 @@ final class Pet: NSObject {
         applyFrame()
     }
 
-    /// 网页认出来的套组（web/src/stage/combos.ts）
+    /// 网页认出来的连招（web/src/stage/combos.ts）
     private static func parseCombo(_ raw: Any) -> Combo? {
         guard let d = raw as? [String: Any], let id = d["id"] as? String, let label = d["label"] as? String,
               let steps = d["steps"] as? [[String: Any]] else { return nil }

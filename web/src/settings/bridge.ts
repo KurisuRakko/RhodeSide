@@ -23,6 +23,15 @@ export interface PetConfig {
   opacity: number
   /** 战斗形态待机时循环的动画（null = 模型自己的待机） */
   pose?: string | null
+  /** 联动：同一个 link 的桌宠结伴走、互相找、一起反应（召出套组时 = 套组 id） */
+  link?: string | null
+}
+
+/** 套组：存起来的一组桌宠，召出时替换桌面上的全部桌宠 */
+export interface Team {
+  id: string
+  name: string
+  members: PetConfig[]
 }
 
 export type Activity = 'auto' | 'walk' | 'stay'
@@ -39,6 +48,8 @@ export interface AppConfig {
   onboarded: boolean
   /** 老版本 App 没有 */
   voice?: { enabled: boolean; volume: number }
+  /** 老版本 App 没有 */
+  teams?: Team[]
 }
 
 export interface UpdateStatus {
@@ -91,7 +102,7 @@ export interface PetSummary {
   /** 战斗形态（正面 / 背面）：不走动，待机循环 pose */
   battle?: boolean
   animations?: string[]
-  /** 套组动作按钮 */
+  /** 连招按钮（战斗形态） */
   combos?: { id: string; label: string }[]
   pose?: string | null
 }
@@ -135,7 +146,12 @@ export type Outgoing =
   | { type: 'addPet'; model?: string }
   | { type: 'removePet'; id: string }
   | { type: 'summonPet'; id?: string }
-  | { type: 'updateGlobal'; patch: Partial<Omit<AppConfig, 'pets' | 'version'>> }
+  | { type: 'updateGlobal'; patch: Partial<Omit<AppConfig, 'pets' | 'teams' | 'version'>> }
+  | { type: 'saveTeam'; name: string }
+  | { type: 'overwriteTeam'; id: string }
+  | { type: 'summonTeam'; id: string }
+  | { type: 'renameTeam'; id: string; name: string }
+  | { type: 'deleteTeam'; id: string }
   | { type: 'setHidden'; hidden: boolean }
   | { type: 'setLoginItem'; enabled: boolean }
   | { type: 'openLoginItemSettings' }
@@ -217,6 +233,7 @@ async function fakeState(): Promise<NativeState> {
       auth: { enabled: true, api: 'https://api.rakko.cn', appID: 'rhodeside' },
       onboarded: false,
       voice: { enabled: true, volume: 0.7 },
+      teams: [],
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],
@@ -274,6 +291,36 @@ async function mock(msg: Outgoing) {
     case 'updateGlobal':
       Object.assign(s.config, msg.patch)
       break
+    case 'saveTeam': {
+      const teams = (s.config.teams ??= [])
+      const id = `team-${Date.now()}`
+      teams.push({ id, name: msg.name.trim() || `套组 ${teams.length + 1}`, members: s.config.pets.map((p) => ({ ...p, link: undefined })) })
+      for (const p of s.config.pets) p.link = id
+      break
+    }
+    case 'overwriteTeam': {
+      const t = s.config.teams?.find((x) => x.id === msg.id)
+      if (!t) return
+      t.members = s.config.pets.map((p) => ({ ...p, link: undefined }))
+      for (const p of s.config.pets) p.link = t.id
+      break
+    }
+    case 'summonTeam': {
+      const t = s.config.teams?.find((x) => x.id === msg.id)
+      if (!t) return
+      s.config.pets = t.members.slice(0, s.maxPets).map((m, i) => ({ ...m, id: `preview-${Date.now()}-${i}`, link: t.id }))
+      s.pets = s.config.pets.map((p) => ({ id: p.id, behavior: 'fall', standing: false, can: PREVIEW_CAN, loaded: null, error: null }))
+      break
+    }
+    case 'renameTeam': {
+      const t = s.config.teams?.find((x) => x.id === msg.id)
+      if (t) t.name = msg.name.trim() || t.name
+      break
+    }
+    case 'deleteTeam':
+      s.config.teams = s.config.teams?.filter((x) => x.id !== msg.id)
+      for (const p of s.config.pets) if (p.link === msg.id) p.link = undefined
+      break
     case 'setHidden':
       s.hidden = msg.hidden
       break
@@ -298,7 +345,7 @@ async function mock(msg: Outgoing) {
       return
     }
     case 'playCombo':
-      toast(`播放套组 ${msg.combo}`)
+      toast(`播放连招 ${msg.combo}`)
       return
     case 'turn':
       toast('转身')

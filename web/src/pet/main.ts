@@ -206,7 +206,7 @@ async function load(msg: LoadMsg) {
       sets: sets.map((x) => ({ outfit: x.outfit, group: x.group })),
       roles: next.roles,
       animations: next.animations,
-      // 战斗模型的套组动作（控制面板按钮）；基建模型一般是空的，用不用由原生层按模型组决定
+      // 战斗模型的连招（控制面板按钮）；基建模型一般是空的，用不用由原生层按模型组决定
       combos: detectCombos(next.animations),
       skins: next.skins,
       version: next.version,

@@ -15,7 +15,7 @@ const battle = anims({
   Skill_3_Restart_Begin: 0.4, Stun_End: 0.2,
 })
 
-test('认出套组和单个按钮', () => {
+test('认出连招和单个按钮', () => {
   const c = detectCombos(battle)
   assert.deepEqual(c.map((x) => x.id), ['Start', 'Attack', 'Skill_1', 'Skill_2', 'Skill_3'])
   assert.deepEqual(c.map((x) => x.label), ['登场', '攻击', '技能 1', '技能 2', '技能 3'])
@@ -26,7 +26,7 @@ test('认出套组和单个按钮', () => {
   assert.equal(s1[0].seconds, 0.5)
   // 没有开头：循环 + 结尾
   assert.deepEqual(c.find((x) => x.id === 'Skill_2')!.steps.map((s) => s.name), ['Skill_2_Loop', 'Skill_2_End'])
-  // 有 Attack 的套组：待机里穿插两次攻击
+  // 有 Attack 的连招：待机里穿插两次攻击
   assert.deepEqual(c.find((x) => x.id === 'Skill_3')!.steps.map((s) => s.name), [
     'Skill_3_Begin', 'Skill_3_Idle', 'Skill_3_Attack', 'Skill_3_Attack', 'Skill_3_Idle', 'Skill_3_End',
   ])
@@ -34,7 +34,7 @@ test('认出套组和单个按钮', () => {
   assert.ok(!c.some((x) => x.id.includes('Restart') || x.id === 'Stun'))
 })
 
-test('有攻击套组时不再单列 Attack', () => {
+test('有攻击连招时不再单列 Attack', () => {
   const c = detectCombos(anims({ Idle: 1, Attack: 1, Attack_Begin: 0.3, Attack_Loop: 1, Attack_End: 0.3 }))
   assert.deepEqual(c.map((x) => x.id), ['Attack'])
   assert.equal(c[0].steps.length, 3)
@@ -48,6 +48,6 @@ test('按钮名', () => {
   assert.equal(comboLabel('Combat_A'), 'Combat · A')
 })
 
-test('基建模型没有套组', () => {
+test('基建模型没有连招', () => {
   assert.deepEqual(detectCombos(anims({ Relax: 2, Move: 1, Interact: 1.5, Sit: 3, Sleep: 4, Special: 1 })), [])
 })

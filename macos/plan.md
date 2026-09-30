@@ -18,6 +18,7 @@ P0–P5 已全部实现并部署到 Rakko 的 Mac，用法见 [README.md](README
 - **热更新**：新增。前端走公网签名通道即时生效；Swift 壳也走同一通道自更新（下载、验签、替换、重启，失败自动回滚），见下文。
 - **右键**：小人身上不再响应右键；动作、模式都在窗口的桌宠页里（2026-09-30 Rakko 要求）。
 - **主窗口**（原控制面板 + 设置，2026-09-30 合并）：一个窗口 + 侧栏（桌宠 / 模型库 / 设置），系统设置式分组；换模型 / 时装 / 形态走桌宠页里的整页选模型界面（带预览）。页面是前端，随热更新。
+- **套组**（2026-09-30）：存一组桌宠一键召出（替换全部），同组联动（结伴走、丢开了互相找、点一只其余的反应）；联动逻辑在 `PetCore/Companions.swift`，Brain 只加了 `go / face / react / leash / events` 几个接口。用法见 README。
 - **行为参数**：状态时长、各动作概率、跳窗概率、悬停透明度放在前端的 `rhodeside-tuning.json`，随前端热更新；状态机本身仍在 Swift。
 
 资源占用（1 只桌宠，footprint）：App 25 MB；每只桌宠的 WebContent 进程 35–65 MB；整个 App 共用的 WebKit GPU 进程约 340 MB（其中 300 MB 为显存映射，稳定不增长）。上限 8 只。
@@ -322,8 +323,8 @@ RhodeSide/
   预览下到 `~/Library/Caches/Rhodeside/previews/<id>/`，经 `rhodeside-res://app/previews/` 给网页。
 - 引导：① 登录（可跳过）→ ② 模型库勾选（右边预览只循环待机）→ 完成时开始下载，并把还没有模型的桌宠换成勾选的第一个。
 - 六星来源：`fetch-prts.mjs`（PRTS 干员一览 → wikitext 的 `干员id` → torappu `meta.json` → 全部时装 × 三种形态），`rhodeside-prts.timer` 每天同步。
-- 战斗形态（正面 / 背面）：不走动；待机循环 `PetConfig.pose`；套组动作由网页 `combos.ts` 按动画名认（跨平台共用），
-  随 `loaded` 发给原生层，`Brain.play(steps)` 按顺序播（一次性的等 animDone / 时长兜底，循环段按秒数），点一下播攻击套组。
+- 战斗形态（正面 / 背面）：不走动；待机循环 `PetConfig.pose`；连招由网页 `combos.ts` 按动画名认（跨平台共用），
+  随 `loaded` 发给原生层，`Brain.play(steps)` 按顺序播（一次性的等 animDone / 时长兜底，循环段按秒数），点一下播攻击连招。
 - 协议版本 bridge = 2（新消息：downloadModels、previewModel/preview、playCombo、finishOnboarding.ids、openPage library）。
 
 ## 风险 / 待验证

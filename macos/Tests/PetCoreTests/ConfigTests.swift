@@ -83,4 +83,33 @@ final class ConfigTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertEqual(try String(contentsOfFile: backup, encoding: .utf8), "{ 这不是 JSON")
     }
+    func testTeamsRoundTripAndDefaults() throws {
+        let url = dir.appendingPathComponent("config.json")
+        var cfg = AppConfig()
+        cfg.teams = [Team(id: "cp", name: "德拉", members: [PetConfig(id: "m1", model: "德克萨斯"), PetConfig(id: "m2", model: "拉普兰德", link: "cp")])]
+        cfg.pets[0].link = "cp"
+        try cfg.save(to: url)
+        let (back, _) = AppConfig.load(from: url)
+        XCTAssertEqual(back, cfg)
+
+        try Data(#"{"pets":[{"id":"x"}],"teams":[{"members":[{"id":"y","model":"m"}]}]}"#.utf8).write(to: url)
+        let (old, result) = AppConfig.load(from: url)
+        XCTAssertEqual(result, .loaded)
+        XCTAssertNil(old.pets[0].link)
+        XCTAssertEqual(old.teams.count, 1)
+        XCTAssertEqual(old.teams[0].name, "套组")
+        XCTAssertEqual(old.teams[0].members[0].model, "m")
+        XCTAssertEqual(AppConfig().teams, [])
+    }
+
+    func testSummonedMembersGetFreshIDsAndLink() {
+        let members = (0..<10).map { PetConfig(id: "m\($0)", model: "M\($0)", height: 999) }
+        let team = Team(id: "cp", name: "多", members: members)
+        let pets = team.summoned()
+        XCTAssertEqual(pets.count, AppConfig.maxPets)
+        XCTAssertEqual(pets.map(\.model), members.prefix(AppConfig.maxPets).map(\.model))
+        XCTAssertTrue(pets.allSatisfy { $0.link == "cp" && !$0.id.hasPrefix("m") })
+        XCTAssertEqual(Set(pets.map(\.id)).count, pets.count)
+        XCTAssertEqual(pets[0].height, PetConfig.heightRange.upperBound)
+    }
 }

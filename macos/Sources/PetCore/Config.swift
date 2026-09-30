@@ -17,6 +17,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var onboarded: Bool
     /// 基建语音（模型带 voice/ 才有）
     public var voice: VoiceConfig
+    /// 套组：存起来的一组桌宠（比如一对 CP），一键召出替换桌面上的全部桌宠
+    public var teams: [Team]
 
     /// 默认模型（不再打进 App：登录后从服务器下载）
     public static let builtinModel = "荒芜拉普兰德"
@@ -37,7 +39,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         updates: UpdateConfig = UpdateConfig(),
         auth: AuthConfig = AuthConfig(),
         onboarded: Bool = false,
-        voice: VoiceConfig = VoiceConfig()
+        voice: VoiceConfig = VoiceConfig(),
+        teams: [Team] = []
     ) {
         self.version = version
         self.pets = pets
@@ -48,6 +51,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.auth = auth
         self.onboarded = onboarded
         self.voice = voice
+        self.teams = teams
     }
 
     public init(from decoder: Decoder) throws {
@@ -63,6 +67,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         // 旧版本写的配置没有这个键：那是已经在用的人，不再弹引导
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? true
         voice = try c.decodeIfPresent(VoiceConfig.self, forKey: .voice) ?? d.voice
+        // 手改坏了套组不连累整份配置（桌宠还在），套组先当没有
+        teams = (try? c.decodeIfPresent([Team].self, forKey: .teams)) ?? d.teams
     }
 
     public enum LoadResult: Equatable, Sendable {
@@ -95,6 +101,36 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public func save(to url: URL, fileManager fm: FileManager = .default) throws {
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoded().write(to: url, options: .atomic)
+    }
+}
+
+/// 套组：成员存完整的桌宠参数（id 只在套组里有用，召出时换新的）
+public struct Team: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var name: String
+    public var members: [PetConfig]
+
+    public init(id: String = UUID().uuidString, name: String, members: [PetConfig]) {
+        self.id = id
+        self.name = name
+        self.members = members
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "套组"
+        members = try c.decodeIfPresent([PetConfig].self, forKey: .members) ?? []
+    }
+
+    /// 召出用的桌宠：新 id、link 指向本套组，超出上限的截掉
+    public func summoned() -> [PetConfig] {
+        members.prefix(AppConfig.maxPets).map { m in
+            var p = m.sanitized()
+            p.id = UUID().uuidString
+            p.link = id
+            return p
+        }
     }
 }
 
@@ -182,6 +218,8 @@ public struct PetConfig: Codable, Equatable, Identifiable, Sendable {
     public var opacity: Double
     /// 战斗形态（正面 / 背面）待机时循环的动画；nil = 模型自己的待机动画
     public var pose: String?
+    /// 联动：同一个非空 link 的桌宠会结伴走、互相找、一起反应（召出套组时 = 套组 id）
+    public var link: String?
 
     public static let heightRange = 40.0...400.0
     public static let strideRange = 0.3...3.0
@@ -198,7 +236,8 @@ public struct PetConfig: Codable, Equatable, Identifiable, Sendable {
         activity: Activity = .auto,
         hoverFade: Bool = false,
         opacity: Double = 1,
-        pose: String? = nil
+        pose: String? = nil,
+        link: String? = nil
     ) {
         self.id = id
         self.model = model
@@ -211,6 +250,7 @@ public struct PetConfig: Codable, Equatable, Identifiable, Sendable {
         self.hoverFade = hoverFade
         self.opacity = opacity
         self.pose = pose
+        self.link = link
     }
 
     /// 把数值夹回合理范围（配置文件可能被手改过）
@@ -237,6 +277,7 @@ public struct PetConfig: Codable, Equatable, Identifiable, Sendable {
         hoverFade = try c.decodeIfPresent(Bool.self, forKey: .hoverFade) ?? d.hoverFade
         opacity = try c.decodeIfPresent(Double.self, forKey: .opacity) ?? d.opacity
         pose = try? c.decodeIfPresent(String.self, forKey: .pose)
+        link = try? c.decodeIfPresent(String.self, forKey: .link)
     }
 }
 

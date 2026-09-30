@@ -1,9 +1,9 @@
 /**
- * 战斗模型（正面 / 背面）的套组动作：按动画名认出成套的，给桌宠页做按钮。
+ * 战斗模型（正面 / 背面）的连招：按动画名认出成套的，给桌宠页做按钮。
  * 在网页里算（各平台共用），pet 页面随 `loaded` 一起发给原生层，原生层只管按顺序播。
  *
  *   `P_Begin`（或 `P_Start`）→ `P_Loop`（没有就 `P_Idle`；有 `P_Attack` 就在中间穿插两次）→ `P_End`；
- *   没有开头、但有 `P_Loop` + `P_End` 的也算。另外单独的 `Start`（登场）、`Attack`（没有攻击套组时）各一个按钮。
+ *   没有开头、但有 `P_Loop` + `P_End` 的也算。另外单独的 `Start`（登场）、`Attack`（没有攻击连招时）各一个按钮。
  */
 
 export interface ComboStep {
@@ -41,7 +41,7 @@ export function detectCombos(animations: { name: string; duration: number }[]): 
     const mid = find(p, 'Loop') ?? find(p, 'Idle')
     const end = find(p, 'End')
     const attack = find(p, 'Attack')
-    // 至少要有「开头 + 后续」或「循环 + 结尾」：单个 Xxx_End 之类的不算套组
+    // 至少要有「开头 + 后续」或「循环 + 结尾」：单个 Xxx_End 之类的不算连招
     if (!((begin && (mid || end)) || (find(p, 'Loop') && end))) continue
     const steps: ComboStep[] = []
     if (begin) steps.push(once(begin))
@@ -60,7 +60,7 @@ export function detectCombos(animations: { name: string; duration: number }[]): 
   return out.sort((a, b) => rank(a.id) - rank(b.id) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
-/** 点一下战斗形态的桌宠播哪个：攻击套组，没有就单个攻击动画 */
+/** 点一下战斗形态的桌宠播哪个：攻击连招，没有就单个攻击动画 */
 export function attackCombo(combos: Combo[]): Combo | null {
   return combos.find((c) => c.id.toLowerCase() === 'attack') ?? null
 }

@@ -50,7 +50,7 @@ corepack pnpm check    # tsc + Rakko Design 合规检查 + combos 单测
 
 - `web/pet.html` + `web/src/pet/`：桌宠渲染页（只有画布）
 - `web/settings.html`、`web/welcome.html`、`web/auth-callback.html` + `web/src/{settings,library,welcome,auth}/`：界面页（Rakko Design，`@rakko/react` primitive）
-- `web/src/stage/`：Spine 载入 / 测量（`loader.ts`、`model.ts`）、舞台（`engine.ts`，现在只给模型库预览用，roam 漫步逻辑留作移植参考）、套组动作识别（`combos.ts`）
+- `web/src/stage/`：Spine 载入 / 测量（`loader.ts`、`model.ts`）、舞台（`engine.ts`，现在只给模型库预览用，roam 漫步逻辑留作移植参考）、连招识别（`combos.ts`）
 - `web/src/ui/icons.tsx`：线性图标（currentColor）
 - `web/public/lib/spine/spine-webgl.js`：Spine 3.8 官方 WebGL 运行时原样副本（`scripts/fetch-spine.sh` 可重拉）。
   Spine 运行时受 Spine Runtimes License 约束，这里仅作个人使用。

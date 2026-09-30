@@ -35,6 +35,11 @@ final class PetManager {
     private(set) var welcome: SettingsController?
     private var pages: [SettingsController] { [settings, welcome].compactMap { $0 } }
     private(set) var tuning = Tuning()
+    /// 套组联动（同一 link 的桌宠结伴走、互相找、一起反应）
+    private let companions = Companions()
+    private var companionsAt: CFTimeInterval = 0
+    /// 召出套组时还没下载、模型目录又还没拿到的模型名：目录到了再排队下载
+    private var wantedModels: Set<String> = []
 
     init() {
         Paths.ensureDirectories()
@@ -67,7 +72,10 @@ final class PetManager {
             self?.ignoreWebEventsUntil = CACurrentMediaTime() + 1.5
             self?.reloadWeb(reason: "远程热更新 build \(build)")
         }
-        updater.onChange = { [weak self] in self?.pushState() }
+        updater.onChange = { [weak self] in
+            self?.requestWantedModels()
+            self?.pushState()
+        }
     }
 
     func start() {
@@ -79,6 +87,7 @@ final class PetManager {
             tick += 1
             let urgent = self.pets.contains { $0.brain.behavior == .fall || $0.brain.behavior == .held }
             if urgent || tick % 3 == 0 { self.rescan() }
+            self.stepCompanions()
         }
         let save = Timer(timeInterval: 15, repeats: true) { [weak self] _ in self?.savePositions() }
         for t in [scan, save] { RunLoop.main.add(t, forMode: .common) }
@@ -312,12 +321,92 @@ final class PetManager {
     func updateGlobal(patch: [String: Any]) {
         var p = patch
         p["pets"] = nil
+        p["teams"] = nil
         p["version"] = nil
         guard let c = merged(config, patch: p) else {
             Log.warn("全局设置参数不对：\(patch)")
             return
         }
         apply(c, reason: "全局设置：\(patch.keys.sorted().joined(separator: ","))")
+    }
+
+    /* ---------------------------------------------------------------- 套组 */
+
+    /// 协调同一 link 的桌宠（没载入完、隐藏着的不算）
+    private func stepCompanions() {
+        let now = CACurrentMediaTime()
+        let dt = companionsAt == 0 ? 0 : min(now - companionsAt, 0.5)
+        companionsAt = now
+        guard !frozen else { return }
+        let members = pets.filter { $0.info != nil && !$0.hidden }.map {
+            Companions.Member(id: $0.config.id, link: $0.config.link, brain: $0.brain, world: world(for: $0))
+        }
+        companions.step(dt: dt, members: members)
+    }
+
+    private func teamName(_ raw: String?, _ c: AppConfig) -> String {
+        let name = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty { return String(name.prefix(40)) }
+        var n = c.teams.count + 1
+        while c.teams.contains(where: { $0.name == "套组 \(n)" }) { n += 1 }
+        return "套组 \(n)"
+    }
+
+    /// 把当前桌面上的桌宠存成一个新套组；当前这些桌宠随即联动起来
+    @discardableResult
+    func saveTeam(name: String?) -> Bool {
+        guard !config.pets.isEmpty else { return false }
+        var c = config
+        let team = Team(name: teamName(name, c), members: c.pets.map { var p = $0; p.link = nil; return p })
+        c.teams.append(team)
+        for i in c.pets.indices { c.pets[i].link = team.id }
+        apply(c, reason: "存套组「\(team.name)」（\(team.members.count) 只）")
+        return true
+    }
+
+    /// 把当前桌面上的桌宠写回某个套组（召出后改了大小、时装、加减了成员）
+    func overwriteTeam(_ id: String) {
+        guard let i = config.teams.firstIndex(where: { $0.id == id }), !config.pets.isEmpty else { return }
+        var c = config
+        c.teams[i].members = c.pets.map { var p = $0; p.link = nil; return p }
+        for j in c.pets.indices { c.pets[j].link = id }
+        apply(c, reason: "更新套组「\(c.teams[i].name)」")
+    }
+
+    /// 召出套组：替换桌面上的全部桌宠（从主屏中间并排掉下来）；还没下载的在线模型排队下载
+    func summonTeam(_ id: String) {
+        guard let team = config.teams.first(where: { $0.id == id }), !team.members.isEmpty else { return }
+        var c = config
+        c.pets = team.summoned()
+        wantedModels.formUnion(c.pets.map(\.model).filter { ModelLibrary.find($0) == nil })
+        apply(c, reason: "召出套组「\(team.name)」")
+        requestWantedModels()
+    }
+
+    /// 把 wantedModels 里模型目录认得的排队下载（目录还没拿到就等下次 onChange）
+    private func requestWantedModels() {
+        guard !wantedModels.isEmpty, let catalog = updater.catalog else { return }
+        let found = catalog.models.filter { wantedModels.contains($0.name) }
+        wantedModels.subtract(found.map(\.name))
+        // 目录里压根没有的（导入的模型被删了之类）别一直惦记
+        wantedModels.formIntersection(catalog.models.map(\.name))
+        updater.requestModels(found.map(\.id))
+    }
+
+    func renameTeam(_ id: String, name: String?) {
+        guard let i = config.teams.firstIndex(where: { $0.id == id }) else { return }
+        var c = config
+        c.teams[i].name = teamName(name, c)
+        apply(c, reason: "套组改名「\(c.teams[i].name)」")
+    }
+
+    /// 删掉套组；桌面上从它召出来的桌宠留着，但不再联动
+    func deleteTeam(_ id: String) {
+        guard let team = config.teams.first(where: { $0.id == id }) else { return }
+        var c = config
+        c.teams.removeAll { $0.id == id }
+        for i in c.pets.indices where c.pets[i].link == id { c.pets[i].link = nil }
+        apply(c, reason: "删除套组「\(team.name)」")
     }
 
     func summon(_ id: String?) {

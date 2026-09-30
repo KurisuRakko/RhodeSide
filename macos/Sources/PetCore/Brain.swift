@@ -68,6 +68,32 @@ public struct AnimRequest: Equatable, Sendable {
     public var token: Int
 }
 
+/// 给套组联动（`Companions`）看的事件：由协调器定期取走
+public enum BrainEvent: Equatable, Sendable {
+    /// 被点了一下
+    case clicked
+    /// 被拎起来、扔下去以后落了地
+    case dropped
+    /// 自己开始走一段路（目标横坐标）
+    case startedWalk(target: Double)
+}
+
+/// 套组里的跟随者拴在集合点附近：待机结束做决定时，离得远就走回去，否则随机走的目标不超出半径
+public struct Leash: Equatable, Sendable {
+    public var x: Double
+    public var y: Double
+    public var radius: Double
+    /// 走回去时站在集合点旁边多远（排队的位置，免得几只叠在集合点身上）
+    public var gap: Double
+
+    public init(x: Double, y: Double, radius: Double, gap: Double = 0) {
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.gap = gap
+    }
+}
+
 public struct World: Sendable {
     public var platforms: [Platform]
     public var screens: [ScreenInfo]
@@ -107,9 +133,9 @@ public final class Brain {
     public var pose: String? {
         didSet { if battle, pose != oldValue, [.idle, .held, .fall].contains(behavior) { playCurrent() } }
     }
-    /// 战斗形态点一下播的套组（没有就转身）
+    /// 战斗形态点一下播的连招（没有就转身）
     public var attack: [ComboStep] = []
-    /// 正在播的套组和播到第几步（behavior == .interact 时有效）
+    /// 正在播的连招和播到第几步（behavior == .interact 时有效）
     private var steps: [ComboStep] = []
     private var stepIndex = 0
 
@@ -124,6 +150,13 @@ public final class Brain {
     private var token = 0
     /// 上一帧脚下平台的 anchorX：平台移动时，走路的目标点跟着平移
     private var anchor: Double?
+    /// 套组联动用
+    public private(set) var events: [BrainEvent] = []
+    public var leash: Leash?
+    /// 这段路走到了以后面朝哪（套组里走到同伴旁边时面朝它）
+    private var arriveFace: Double?
+    /// 这次下落是被人扔的（落地时发 `.dropped`）
+    private var thrown = false
 
     public init(params: PetParams, foot: CGPoint, random: @escaping () -> Double = { Double.random(in: 0..<1) }) {
         self.params = params
@@ -133,6 +166,9 @@ public final class Brain {
     }
 
     public var isMoving: Bool { behavior == .walk || behavior == .fall || behavior == .held }
+
+    /// 站在平台上（能做动作、能走）
+    public var isStanding: Bool { support != .none && behavior != .held && behavior != .fall }
 
     /// 当前的水平速度（pt/s），给渲染端在两次位置更新之间外推用
     public var visualVX: Double {
@@ -152,6 +188,7 @@ public final class Brain {
 
     /// 按住拖动：拎起来
     public func grab() {
+        thrown = false
         support = .none
         anchor = nil
         velocity = .zero
@@ -171,13 +208,15 @@ public final class Brain {
         guard behavior == .held else { return }
         let m = Self.maxSpeed
         velocity = CGVector(dx: min(max(v.dx, -m), m), dy: min(max(v.dy, -m), m))
+        thrown = true
         behavior = .fall
         playCurrent()
     }
 
-    /// 单击：播互动动画（战斗形态播攻击套组）；都没有就转个身
+    /// 单击：播互动动画（战斗形态播攻击连招）；都没有就转个身
     public func click() {
         guard support != .none, behavior != .held, behavior != .fall else { return }
+        emit(.clicked)
         if battle {
             if !play(attack) { dir = -dir }
         } else if params.roles.interact != nil {
@@ -200,7 +239,86 @@ public final class Brain {
         return true
     }
 
-    /// 按顺序播一串动画（控制面板的套组按钮、战斗形态的点击）；播完回到待机
+    /* ---------------------------------------------------------------- 套组联动 */
+
+    /// 取走积攒的事件
+    public func takeEvents() -> [BrainEvent] {
+        defer { events = [] }
+        return events
+    }
+
+    private func emit(_ e: BrainEvent) {
+        events.append(e)
+        if events.count > 16 { events.removeFirst(events.count - 16) } // 没人取（不在套组里）时别越攒越多
+    }
+
+    /// 走到某个点附近：目标在同一片能走的范围里就走过去（夹在范围内）；目标在脚下更低的地方而自己站在窗口上，
+    /// 就从离目标近的那一边走出窗口跳下去；目标在高处就走到它正下方。
+    /// 走到了面朝 `face`。坐着也会站起来；睡觉、做动作、战斗形态、原地停留、没有走路动画都不走。
+    @discardableResult
+    public func go(to p: CGPoint, face: Double? = nil, world: World) -> Bool {
+        guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, params.roles.move != nil,
+              let here = platform(world) else { return false }
+        return approach(p, face: face, here, world)
+    }
+
+    /// 转向某个横坐标；走着路就先停下
+    public func face(towardX x: Double) {
+        guard isStanding, abs(x - foot.x) > 1 else { return }
+        let d = x >= foot.x ? 1 : -1
+        guard d != dir else { return }
+        if behavior == .walk { enter(.idle) }
+        dir = d
+    }
+
+    /// 同伴被点了：转过去看它，有互动动画就播（睡着的不理，正在做动作的只转身，战斗形态只转身）
+    @discardableResult
+    public func react(towardX x: Double) -> Bool {
+        guard isStanding, behavior != .sleep else { return false }
+        face(towardX: x)
+        // 原地停留时手动让它坐着的（计时无限）只转身，不打断
+        guard !battle, behavior != .interact, timer.isFinite, params.roles.interact != nil else { return true }
+        enter(.interact)
+        return true
+    }
+
+    /// 脚下的平台（找不到就 nil）
+    private func platform(_ world: World) -> Platform? {
+        guard case .on(let kind, let dx) = support else { return nil }
+        let same = world.platforms.filter { $0.kind == kind }
+        if case .ground = kind { return same.first }
+        return same.first { $0.segment.contains(x: $0.anchorX + dx, tolerance: 1) }
+    }
+
+    private func approach(_ p: CGPoint, face: Double?, _ here: Platform, _ world: World) -> Bool {
+        let (lo, hi) = span(of: here, world)
+        let half = params.halfWidth
+        var target: Double
+        if case .window = here.kind, Double(p.y) < foot.y - Self.stepTolerance,
+           let edge = jumpEdge(lo, hi, toward: Double(p.x), world) {
+            target = edge
+        } else {
+            target = hi - lo > 2 * half ? min(max(Double(p.x), lo + half), hi - half) : foot.x
+        }
+        guard abs(target - foot.x) > 2 else {
+            if let f = face { self.face(towardX: f) }
+            if behavior == .walk || behavior == .sit { enter(.idle) }
+            return false
+        }
+        targetX = target
+        dir = target >= foot.x ? 1 : -1
+        arriveFace = face
+        enter(.walk)
+        return true
+    }
+
+    /// 从窗口哪边跳下去离 x 近：那一边下面得有屏幕（贴着最外侧屏幕边的窗口，走出去会掉出所有屏幕）
+    private func jumpEdge(_ lo: Double, _ hi: Double, toward x: Double, _ world: World) -> Double? {
+        let edges = [lo - 2, hi + 2].filter { world.screen(spanningX: $0) != nil }
+        return edges.min { abs($0 - x) < abs($1 - x) }
+    }
+
+    /// 按顺序播一串动画（控制面板的连招按钮、战斗形态的点击）；播完回到待机
     @discardableResult
     public func play(_ sequence: [ComboStep]) -> Bool {
         guard !sequence.isEmpty, support != .none, behavior != .held, behavior != .fall else { return false }
@@ -274,6 +392,7 @@ public final class Brain {
 
     /// 放到某个位置，从那里自由落下（恢复上次的位置、「叫回来」都用它）
     public func teleport(to p: CGPoint) {
+        thrown = false
         foot = p
         support = .none
         anchor = nil
@@ -336,6 +455,11 @@ public final class Brain {
         let roles = params.roles
         let t = tuning
         if battle { return enter(.idle) }
+        if let l = leash, activity != .stay, roles.move != nil {
+            let below = isOnWindow && l.y < foot.y - Self.stepTolerance
+            let side: Double = foot.x >= l.x ? 1 : -1
+            if below || abs(foot.x - l.x) > l.radius, approach(CGPoint(x: l.x + side * l.gap, y: l.y), face: l.x, p, world) { return }
+        }
         switch activity {
         case .walk:
             if roles.move != nil { startWalk(p, world) } else { enter(.idle) }
@@ -359,18 +483,25 @@ public final class Brain {
         let lo = lo0 + half
         let hi = hi0 - half
         var target: Double
-        if case .window = p.kind, random() < tuning.edgeJumpChance {
+        // 套组跟随者不随机跳窗（跳下去就爬不回集合点身边了）
+        if case .window = p.kind, leash == nil, random() < tuning.edgeJumpChance {
             target = random() < 0.5 ? lo0 - 2 : hi0 + 2 // 走出边缘，掉下去
         } else {
-            guard hi - lo > 1 else { return enter(.idle) } // 平台比身子还窄，不走
-            let minDist = min((hi - lo) / 2, 300)
-            target = lo + random() * (hi - lo)
-            for _ in 0..<6 where abs(target - foot.x) < minDist { target = lo + random() * (hi - lo) }
+            // 套组跟随者：只在集合点附近溜达
+            // （集合点够不着、半径和这片范围不相交时就照常在整片范围里走）
+            let near = leash.map { (max(lo, $0.x - $0.radius), min(hi, $0.x + $0.radius)) }
+            let (a, b) = near.flatMap { $0.1 - $0.0 > 1 ? $0 : nil } ?? (lo, hi)
+            guard b - a > 1 else { return enter(.idle) } // 平台比身子还窄，不走
+            let minDist = min((b - a) / 2, 300)
+            target = a + random() * (b - a)
+            for _ in 0..<6 where abs(target - foot.x) < minDist { target = a + random() * (b - a) }
         }
         guard abs(target - foot.x) > 1 else { return enter(.idle) }
         targetX = target
         dir = target >= foot.x ? 1 : -1
+        arriveFace = nil
         enter(.walk)
+        emit(.startedWalk(target: target))
     }
 
     private func walk(_ dt: Double, _ p: Platform, _ world: World) {
@@ -399,7 +530,11 @@ public final class Brain {
             playCurrent()
             return
         }
-        if arrived { enter(.idle) }
+        if arrived {
+            if let f = arriveFace, abs(f - foot.x) > 1 { dir = f >= foot.x ? 1 : -1 }
+            arriveFace = nil
+            enter(.idle)
+        }
     }
 
     private func fall(_ dt: Double, _ world: World) {
@@ -439,6 +574,10 @@ public final class Brain {
         support = .on(p.kind, dx: x - p.anchorX)
         anchor = p.anchorX
         enter(.idle)
+        if thrown {
+            thrown = false
+            emit(.dropped)
+        }
     }
 
     /// 掉出了所有屏幕（拔了显示器、屏幕之间的缝）：放回主屏地面中间

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 套组动作里的一步：播一次（loop = false，seconds = 动画时长，网页 animDone 没来时兜底）或循环 seconds 秒
+/// 连招里的一步：播一次（loop = false，seconds = 动画时长，网页 animDone 没来时兜底）或循环 seconds 秒
 public struct ComboStep: Equatable, Sendable {
     public var name: String
     public var loop: Bool

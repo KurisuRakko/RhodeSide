@@ -20,7 +20,7 @@ import { homedir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 
 /** 原生层 ↔ 网页的消息协议版本：改了协议就和 Sources/Rhodeside/RemoteUpdater.swift 一起 +1 */
-const BRIDGE = 2
+const BRIDGE = 3
 const KEEP = 10
 const KEY_ID = 'rhodeside-2026-09'
 
