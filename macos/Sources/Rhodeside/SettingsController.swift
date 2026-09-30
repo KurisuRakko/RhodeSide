@@ -221,6 +221,11 @@ extension SettingsController: WKScriptMessageHandler {
             toast("诊断快照已保存到日志文件夹")
         case "checkUpdates":
             manager.updater.check(force: true)
+        case "uploadLogs":
+            guard !manager.logUploader.busy else { break }
+            manager.logUploader.run("manual") { [weak self] error in
+                self?.toast(error.map { "日志上传失败：\($0)" } ?? "日志已上传")
+            }
         case "perform":
             guard let raw = b.string("behavior"), let behavior = Behavior(rawValue: raw) else { break }
             for pet in manager.pets where b.string("id") == nil || pet.config.id == b.string("id") { pet.perform(behavior) }

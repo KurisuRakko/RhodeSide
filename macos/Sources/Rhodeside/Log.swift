@@ -30,18 +30,20 @@ enum Log {
     }
 
     static func info(_ s: @autoclosure () -> String) { write("INFO", s()) }
-    static func warn(_ s: @autoclosure () -> String) { write("WARN", s()) }
-    static func error(_ s: @autoclosure () -> String) { write("ERROR", s()) }
+    // 警告和错误同步写：紧接着崩溃（信号不会 flush）时这几行也在文件里，崩溃后自动上传才看得到
+    static func warn(_ s: @autoclosure () -> String) { write("WARN", s(), sync: true) }
+    static func error(_ s: @autoclosure () -> String) { write("ERROR", s(), sync: true) }
 
     static func flush() {
         queue.sync { try? handle?.synchronize() }
     }
 
-    private static func write(_ level: String, _ text: String) {
+    private static func write(_ level: String, _ text: String, sync: Bool = false) {
         let line = "\(stamp.string(from: Date())) [\(level)] \(text)\n"
-        queue.async {
+        let work = {
             guard let data = line.data(using: .utf8) else { return }
             if let h = handle { try? h.write(contentsOf: data) } else { FileHandle.standardError.write(data) }
         }
+        if sync { queue.sync(execute: work) } else { queue.async(execute: work) }
     }
 }

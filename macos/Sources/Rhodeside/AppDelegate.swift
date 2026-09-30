@@ -11,17 +11,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var activity: NSObjectProtocol?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        Log.setup()
-        // 单实例：已经有一个在跑就退出（LaunchServices 平时会把第二次打开转给已有的那个，这里防 open -n / 直接跑二进制）
+        // 单实例：已经有一个在跑就退出（LaunchServices 平时会把第二次打开转给已有的那个，这里防 open -n / 直接跑二进制）。
+        // 在 Log.setup 之前查：setup 会轮转日志，不能动正在跑的那个的文件（这时 Log 还没打开文件，写到 stderr）
         let me = ProcessInfo.processInfo.processIdentifier
         if let other = NSRunningApplication.runningApplications(withBundleIdentifier: Paths.bundleID).first(where: { $0.processIdentifier != me }) {
             Log.warn("已经有一个 Rhodeside 在跑（pid \(other.processIdentifier)），这个退出")
             Log.flush()
             exit(0)
         }
+        Log.setup()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LogUploader.markRunning()
         Log.info("启动 Rhodeside \(Paths.version)，pid \(getpid())，\(ProcessInfo.processInfo.operatingSystemVersionString)，程序在 \(Bundle.main.bundlePath)")
         setupMainMenu()
         setupStatusItem()
@@ -56,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         manager?.shutdown()
         Log.info("退出")
         Log.flush()
+        LogUploader.markStopped()
     }
 
     /* ---------------------------------------------------------------- 菜单 */

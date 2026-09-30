@@ -18,6 +18,7 @@ final class PetManager {
     private let tracker = WindowTracker()
     private(set) var updater: RemoteUpdater!
     private(set) var auth: Auth!
+    private(set) var logUploader: LogUploader!
     private var frozenUntil: CFTimeInterval = 0
     private var timers: [Timer] = []
     private var observers: [NSObjectProtocol] = []
@@ -76,6 +77,9 @@ final class PetManager {
             self?.requestWantedModels()
             self?.pushState()
         }
+        logUploader = LogUploader(updater: updater, auth: auth)
+        logUploader.onChange = { [weak self] in self?.pushState() }
+        logUploader.start()
     }
 
     func start() {
@@ -554,6 +558,7 @@ final class PetManager {
             "updates": updater.status,
             "auth": auth.status,
             "catalog": updater.modelStatus,
+            "logUpload": logUploader.status,
             "appBuild": NSNumber(value: Paths.appBuild),
         ]
     }

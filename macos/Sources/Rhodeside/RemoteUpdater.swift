@@ -97,6 +97,9 @@ final class RemoteUpdater {
         check()
     }
 
+    /// 更新通道地址（日志上传也发到这里）
+    var baseURL: URL? { URL(string: config.url) }
+
     var status: [String: Any] {
         [
             "enabled": config.enabled,
@@ -452,9 +455,9 @@ final class RemoteUpdater {
 
     /* ---------------------------------------------------------------- 票据 */
 
-    /// 鉴权关着：不带票据。开着：用 access token 换 10 分钟的票据，快过期再换
+    /// 鉴权关着：不带票据。开着：用 access token 换 10 分钟的票据，快过期再换（日志上传也用）
     @MainActor
-    private func ticketHeaders(base: URL) async throws -> [String: String] {
+    func ticketHeaders(base: URL) async throws -> [String: String] {
         guard auth.enabled else { return [:] }
         if let until = ticketBlockedUntil, Date() < until { throw Oops("换票被拒，\(Int(until.timeIntervalSinceNow / 60) + 1) 分钟后重试（或点「立即检查」）") }
         if let t = ticket, t.expires.timeIntervalSinceNow > 60 { return ["X-Rhodeside-Ticket": t.value] }

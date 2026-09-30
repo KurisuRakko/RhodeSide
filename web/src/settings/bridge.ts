@@ -63,6 +63,12 @@ export interface UpdateStatus {
   app: { current: number; remote: number | null; state: 'waiting' | 'downloading' | 'installing' | 'restarting' | 'failed' | null }
 }
 
+export interface LogUploadStatus {
+  lastUpload: string | null
+  error: string | null
+  busy: boolean
+}
+
 export interface AuthStatus {
   enabled: boolean
   phase: 'disabled' | 'signedOut' | 'signingIn' | 'signedIn' | 'denied'
@@ -123,6 +129,8 @@ export interface NativeState {
   appBuild: number
   /** 服务器上的在线模型（登录后才拿得到目录） */
   catalog: CatalogModel[]
+  /** 日志自动上传；老版本 App 没有 */
+  logUpload?: LogUploadStatus
 }
 
 export interface StagedImport {
@@ -162,6 +170,7 @@ export type Outgoing =
   | { type: 'snapshot' }
   | { type: 'reloadWeb' }
   | { type: 'checkUpdates' }
+  | { type: 'uploadLogs' }
   | { type: 'perform'; id?: string; behavior: Behavior }
   | { type: 'playCombo'; id: string; combo: string }
   | { type: 'turn'; id: string }
@@ -251,6 +260,7 @@ async function fakeState(): Promise<NativeState> {
     auth: { enabled: true, phase: 'signedOut', user: null, error: null },
     appBuild: 0,
     catalog: [],
+    logUpload: { lastUpload: null, error: null, busy: false },
   }
   return fake
 }
@@ -326,6 +336,10 @@ async function mock(msg: Outgoing) {
       break
     case 'perform':
       for (const p of s.pets) if (!msg.id || p.id === msg.id) p.behavior = msg.behavior
+      break
+    case 'uploadLogs':
+      if (s.logUpload) s.logUpload.lastUpload = new Date().toISOString()
+      toast('日志已上传（浏览器预览）')
       break
     case 'authLogin':
       s.auth = { ...s.auth, phase: 'signedIn', user: 'Rakko（预览）', error: null }

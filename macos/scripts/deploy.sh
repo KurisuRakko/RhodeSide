@@ -10,6 +10,8 @@
 #   macos/scripts/deploy.sh test     在 Mac 上跑 PetCore 单元测试
 #   macos/scripts/deploy.sh logs     看 App 日志最后 80 行
 #   macos/scripts/deploy.sh snap     让 App 存一份调试快照（画布 PNG + 状态），列出文件
+#   macos/scripts/deploy.sh remote-logs [--crash] [账号/设备/电脑名/用户名的一部分] [行数]
+#                                    看各台 App 自动上传的日志（/opt/stacks/rhodeside/logs）；不带参数列出所有设备
 #
 # 自动热更新（盯着源码自动选上面哪种）：node macos/scripts/dev.mjs
 set -euo pipefail
@@ -116,8 +118,12 @@ case "$MODE" in
   snap)
     ssh "$MAC" 'open "rhodeside://debug/snapshot"; sleep 2; ls -t "$HOME/Library/Logs/Rhodeside/snapshots" | head -n 8'
     ;;
+  remote-logs)
+    shift
+    node "$HERE/remote-logs.mjs" "$@"
+    ;;
   *)
-    echo "用法：$0 [full|install|web|models|web-ssh|test|logs|snap]" >&2
+    echo "用法：$0 [full|install|web|models|web-ssh|test|logs|snap|remote-logs]" >&2
     exit 2
     ;;
 esac

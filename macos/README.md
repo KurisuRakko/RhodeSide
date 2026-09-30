@@ -15,6 +15,7 @@ corepack pnpm mac:dev      # 监听源码：前端改动 → mac:web；Swift 改
 corepack pnpm mac:test     # 在 Mac 上运行 PetCore 单元测试
 bash macos/scripts/deploy.sh web-ssh   # 前端直接 ssh 推送，不经公网
 bash macos/scripts/deploy.sh logs      # 查看日志最后 80 行
+bash macos/scripts/deploy.sh remote-logs [--crash] [关键词] [行数]   # 看各台 App 自动上传的日志（不带参数列出所有设备）
 bash macos/scripts/deploy.sh snap      # 保存调试快照（每只桌宠的画布 PNG 与状态 JSON）
 ```
 
@@ -36,6 +37,17 @@ Mac 通过 `ssh mac` 连接（可用 `RHODESIDE_MAC` 覆盖）。Mac 上的构�
 App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前端新时自动失效。
 签名私钥 `~/.config/rhodeside/release-ed25519.pem`，公钥内置在 `Sources/Rhodeside/RemoteUpdater.swift`。
 设置 → 更新：关闭自动更新、手动检查、看 App / 前端当前与最新版本。自更新日志在 `~/Library/Application Support/Rhodeside/updates/install.log`。
+
+### 日志自动上传
+
+总是开，没有开关（`Sources/Rhodeside/LogUploader.swift`）：
+- 每天一次，把 `rhodeside.log` 新增的部分（单次最多 4MB，超了只传最后的）传到 `POST https://rhodeside.rakko.cn/v1/logs`；
+- 上次没正常退出（崩溃、被强制结束；正常退出和 SIGTERM 不算）：启动 3 秒后立刻传（两分钟后再补查一次系统崩溃报告），连同 `~/Library/Logs/DiagnosticReports/Rhodeside*.ips` 里没传过的系统崩溃报告；
+- 设置 → 故障排查 →「立即上传日志」。
+登录了带票据，按 Priestess 账号归档；没登录也传（进 `_anon/`，body ≤ 2MB，最多 200 台）。失败不前移游标，每小时再试。
+服务器：`auth` 容器（`auth/server.mjs`）存到 `/opt/stacks/rhodeside/logs/<账号|_anon>/<设备 UUID>/`
+（`rhodeside.log` 超 20MB 轮转一份、`crash/*.ips` 留 20 份、`meta.json` 记电脑名 / 用户名 / 版本 / 最后上传时间）；nginx 每 IP 每分钟 6 次。
+用 `deploy.sh remote-logs` 看。
 
 ### 鉴权（Priestess）
 
@@ -83,6 +95,8 @@ App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前�
 | `~/Library/Application Support/Rhodeside/web-dev/` | 热更新下载的前端 |
 | `~/Library/Logs/Rhodeside/rhodeside.log` | 日志（网页的 console 也在这里） |
 | `~/Library/Logs/Rhodeside/snapshots/` | 调试快照 |
+| `~/Library/Application Support/Rhodeside/log-upload.json` | 日志上传：设备 id、读到哪了、上次上传时间 |
+| `~/Library/Application Support/Rhodeside/running` | 运行标记（正常退出时删掉；启动时还在 = 上次崩溃了） |
 
 ## 调试链接
 
@@ -112,7 +126,7 @@ macos/
   Sources/PetCore/      纯逻辑（有单元测试）：Geometry 坐标换算和布局、Platforms 窗口顶边遮挡计算和全屏判断、
                         Brain 行为状态机和物理、Config 配置读写
   Sources/Rhodeside/    App：AppDelegate 菜单栏和单实例、PetManager 扫描 / 配置 / 热更新、Pet 一只桌宠（消息、鼠标、每帧）、
-                        PetWindow 透明面板、SchemeHandler rhodeside-res://、WindowScanner、Tracking（后台扫描与窗口追踪）、RemoteUpdater（公网热更新）、SettingsController、
+                        PetWindow 透明面板、SchemeHandler rhodeside-res://、WindowScanner、Tracking（后台扫描与窗口追踪）、RemoteUpdater（公网热更新）、LogUploader（日志自动上传）、SettingsController、
                         Importer、ModelLibrary、LoginItem、FileWatcher、Debug、Log
   Tests/PetCoreTests/
   Resources/Info.plist

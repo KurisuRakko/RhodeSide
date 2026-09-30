@@ -6,7 +6,7 @@ import { Button, Field } from '@rakko/react'
 import { useState } from 'react'
 
 import * as I from '../ui/icons.tsx'
-import { native, send, type NativeState, type UpdateStatus } from './bridge.ts'
+import { native, send, type LogUploadStatus, type NativeState, type UpdateStatus } from './bridge.ts'
 import { Choice, Group, nearest, Row, SwitchRow } from './ui.tsx'
 
 const VOLUMES: [string, string][] = [
@@ -107,9 +107,21 @@ export function SettingsPage({ state }: { state: NativeState }) {
                 <dd>{new Date(state.updates.lastCheck).toLocaleString()}</dd>
               </>
             )}
+            {state.logUpload && (
+              <>
+                <dt>日志上传</dt>
+                <dd>{logUploadSummary(state.logUpload)}</dd>
+              </>
+            )}
           </dl>
+          {state.logUpload && <p className="rs-hint">日志每天自动上传一次，出错退出后会立即上传，用于排查问题（内容是运行记录：系统版本、屏幕、账号名、电脑名和出错信息，不含模型文件）。</p>}
           <div className="rs-row">
             <Button onClick={() => send({ type: 'reveal', what: 'logs' })}>显示日志</Button>
+            {state.logUpload && (
+              <Button disabled={state.logUpload.busy} onClick={() => send({ type: 'uploadLogs' })}>
+                {state.logUpload.busy ? '正在上传…' : '立即上传日志'}
+              </Button>
+            )}
             <Button onClick={() => send({ type: 'reveal', what: 'models' })}>显示模型文件夹</Button>
             <Button onClick={() => send({ type: 'reveal', what: 'config' })}>显示配置文件</Button>
             <Button onClick={() => send({ type: 'snapshot' })}>
@@ -123,6 +135,12 @@ export function SettingsPage({ state }: { state: NativeState }) {
       </details>
     </div>
   )
+}
+
+function logUploadSummary(u: LogUploadStatus): string {
+  if (u.busy) return '正在上传…'
+  const last = u.lastUpload ? new Date(u.lastUpload).toLocaleString() : '还没有上传过'
+  return u.error ? `${last}（上次失败：${u.error}）` : last
 }
 
 /** 更新状态一句话：正在进行的事 > 错误 > 有新版本 > 已是最新 */

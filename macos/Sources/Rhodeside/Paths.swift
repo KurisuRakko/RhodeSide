@@ -26,6 +26,8 @@ enum Paths {
     static var updates: URL { support.appendingPathComponent("updates", isDirectory: true) }
     /// Priestess 令牌（600）。不放钥匙串：ad-hoc 签名每次更新都会变，钥匙串会反复弹授权框
     static var authFile: URL { support.appendingPathComponent("auth.json") }
+    /// 日志上传的设备 id、读到哪了、上次上传时间
+    static var logUpload: URL { support.appendingPathComponent("log-upload.json") }
 
     /// ~/Library/Caches/Rhodeside/previews：模型库的预览（默认时装的基建模型），随时可以清掉
     static let previews: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
