@@ -198,6 +198,10 @@ final class Pet: NSObject {
     @discardableResult
     func perform(_ b: Behavior) -> Bool { brain.perform(b) }
 
+    /// 控制面板的「转身」按钮
+    @discardableResult
+    func turn() -> Bool { brain.turn() }
+
     private func handleLoaded(_ b: Body) {
         guard let layout = parseLayout(b.dict("layout")), let rest = b.rect("rest") else {
             Log.error("[\(short)] loaded 消息缺 layout/rest")

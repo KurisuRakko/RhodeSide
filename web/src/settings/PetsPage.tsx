@@ -2,6 +2,7 @@
  * 「桌宠」页：一只一只地管。上面选哪只，下面分「模型」「显示」「活动」「立即动作」四组（系统设置式：左边名字、右边控件）。
  * 换模型 / 时装 / 形态走整页的选模型界面（ModelPicker），和模型库一样左边列表、右边预览。
  * 战斗形态（正面 / 背面）不走动：「活动」换成循环播的动作下拉框，「立即动作」换成套组动作按钮。
+ * 两种形态的「立即动作」里都有「转身」。
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Button, FilterChip } from '@rakko/react'
@@ -225,6 +226,7 @@ function BaseControls({ pet, summary }: { pet: PetConfig; summary?: PetSummary }
               {text}
             </Button>
           ))}
+          <TurnButton pet={pet} summary={summary} />
         </Row>
       </Group>
     </>
@@ -243,17 +245,31 @@ function BattleControls({ pet, summary }: { pet: PetConfig; summary: PetSummary 
           <Pick label="循环动作" value={summary.pose ?? null} options={options} onChange={(v) => send({ type: 'updatePet', id: pet.id, patch: { pose: v } })} />
         </Row>
       </Group>
-      {combos.length > 0 && (
-        <Group title="立即动作">
+      <Group title="立即动作">
+        {combos.length > 0 ? (
           <Row label="套组动作" hint={summary.standing ? '按顺序播一遍，播完回到循环动作' : '站稳以后才能做动作'}>
             {combos.map((c) => (
               <Button key={c.id} disabled={!summary.standing} onClick={() => send({ type: 'playCombo', id: pet.id, combo: c.id })}>
                 {c.label}
               </Button>
             ))}
+            <TurnButton pet={pet} summary={summary} />
           </Row>
-        </Group>
-      )}
+        ) : (
+          <Row label="转身" hint={summary.standing ? undefined : '站稳以后才能转身'}>
+            <TurnButton pet={pet} summary={summary} />
+          </Row>
+        )}
+      </Group>
     </>
+  )
+}
+
+/** 掉个头；走着路会先停下 */
+function TurnButton({ pet, summary }: { pet: PetConfig; summary?: PetSummary }) {
+  return (
+    <Button disabled={!summary?.standing} onClick={() => send({ type: 'turn', id: pet.id })}>
+      转身
+    </Button>
   )
 }

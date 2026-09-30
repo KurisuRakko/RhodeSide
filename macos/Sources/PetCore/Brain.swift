@@ -187,6 +187,19 @@ public final class Brain {
         }
     }
 
+    /// 控制面板的「转身」：站稳了就掉个头；走着路就先停下（不然会倒着走），
+    /// 并且至少站一个普通待机的时长，免得「一直行走」下马上起步又转回去
+    @discardableResult
+    public func turn() -> Bool {
+        guard support != .none, behavior != .held, behavior != .fall else { return false }
+        if behavior == .walk || behavior == .idle {
+            enter(.idle)
+            timer = max(timer, rand(tuning.idle[0], tuning.idle[1]))
+        }
+        dir = -dir
+        return true
+    }
+
     /// 按顺序播一串动画（控制面板的套组按钮、战斗形态的点击）；播完回到待机
     @discardableResult
     public func play(_ sequence: [ComboStep]) -> Bool {

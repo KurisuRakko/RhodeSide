@@ -224,6 +224,8 @@ extension SettingsController: WKScriptMessageHandler {
         case "perform":
             guard let raw = b.string("behavior"), let behavior = Behavior(rawValue: raw) else { break }
             for pet in manager.pets where b.string("id") == nil || pet.config.id == b.string("id") { pet.perform(behavior) }
+        case "turn":
+            for pet in manager.pets where pet.config.id == b.string("id") { pet.turn() }
         case "playCombo":
             guard let combo = b.string("combo") else { break }
             for pet in manager.pets where pet.config.id == b.string("id") { pet.playCombo(combo) }

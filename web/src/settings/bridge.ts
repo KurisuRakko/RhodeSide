@@ -148,6 +148,7 @@ export type Outgoing =
   | { type: 'checkUpdates' }
   | { type: 'perform'; id?: string; behavior: Behavior }
   | { type: 'playCombo'; id: string; combo: string }
+  | { type: 'turn'; id: string }
   | { type: 'openPage'; page: 'pets' | 'models' | 'settings' }
   | { type: 'downloadModels'; ids: string[] }
   | { type: 'previewModel'; id: string }
@@ -298,6 +299,9 @@ async function mock(msg: Outgoing) {
     }
     case 'playCombo':
       toast(`播放套组 ${msg.combo}`)
+      return
+    case 'turn':
+      toast('转身')
       return
     case 'finishOnboarding':
       s.config.onboarded = true

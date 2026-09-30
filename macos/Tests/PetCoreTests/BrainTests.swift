@@ -203,6 +203,23 @@ final class BrainTests: XCTestCase {
         XCTAssertEqual(b.dir, -d)
         XCTAssertEqual(b.behavior, .idle)
     }
+    func testTurnFlipsAndStopsWalking() {
+        let b = brain(at: CGPoint(x: 700, y: 70), dice: Dice([0.0, 0.1, 0.9, 0.9]))
+        let w = World(platforms: [ground], screens: [screen])
+        XCTAssertFalse(b.turn()) // 还在下落
+        run(b, w, seconds: 2.7)
+        XCTAssertEqual(b.behavior, .walk)
+        let d = b.dir
+        XCTAssertTrue(b.turn())
+        XCTAssertEqual(b.dir, -d)
+        XCTAssertEqual(b.behavior, .idle)
+        // 停下来站着，不会倒着滑
+        let x = b.foot.x
+        run(b, w, seconds: 0.3)
+        XCTAssertEqual(b.foot.x, x, accuracy: 0.001)
+        XCTAssertEqual(b.dir, -d)
+    }
+
     func testStayNeverWalksAndStopsWalking() {
         let b = brain(at: CGPoint(x: 700, y: 70), dice: Dice([0.0, 0.1, 0.9, 0.9]))
         let w = World(platforms: [ground], screens: [screen])
