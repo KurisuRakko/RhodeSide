@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// 小人的行为状态机 + 物理，从 SpineStage `engine.ts` 的漫步逻辑移植过来，改成在「平台」上走：
+/// 小人的行为状态机 + 物理，从原 SpineStage 网页版 `engine.ts` 的漫步逻辑移植过来，改成在「平台」上走：
 /// 平台是屏幕地面和窗口顶边（见 `Platforms`）。纯逻辑，不碰 AppKit，方便单元测试。
 ///
 /// 坐标：AppKit 全局坐标（pt，y 向上）。`foot` 是脚底锚点。

@@ -7,7 +7,7 @@ import { defineConfig } from 'vite'
 const vendor = (rel: string) =>
   fileURLToPath(new URL(`./vendor/rakko-design/${rel}`, import.meta.url))
 
-const port = Number(process.env.SPINESTAGE_PORT ?? 8066)
+const port = Number(process.env.RHODESIDE_PORT ?? 8066)
 const page = (rel: string) => fileURLToPath(new URL(`./web/${rel}`, import.meta.url))
 
 export default defineConfig({

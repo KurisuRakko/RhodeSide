@@ -6,7 +6,7 @@ struct ModelEntry {
     let name: String
     let dir: URL
     let builtin: Bool
-    /// 相对 models/ 的路径（`名字/子目录/文件`），和 SpineStage 的 models/index.json 同一种写法
+    /// 相对 models/ 的路径（`名字/子目录/文件`），和 web/src/stage 的 models/index.json 同一种写法
     let files: [String]
 }
 

@@ -6,7 +6,7 @@ struct Oops: LocalizedError {
 }
 
 /// 导入模型：先把用户选的文件夹（只拷模型相关的文件）复制到 import/<批次>/<名字>/，
-/// 让设置页用 SpineStage 的 loader 经 rhodeside-res:// 真载一遍检查，通过了再挪进 models/。
+/// 让设置页用 web/src/stage 的 loader 经 rhodeside-res:// 真载一遍检查，通过了再挪进 models/。
 final class Importer {
     struct Job {
         let token: String

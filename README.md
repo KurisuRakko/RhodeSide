@@ -1,6 +1,6 @@
-# SpineStage → Rhodeside 桌宠
+# RhodeSide
 
-这个仓库现在只维护 **Rhodeside**：桌面上的明日方舟 Spine 3.8 小人（目前只有 macOS 版）。
+这个仓库（原名 SpineStage，2026-09-30 改名 RhodeSide）只维护 **Rhodeside**：桌面上的明日方舟 Spine 3.8 小人（目前只有 macOS 版）。
 原来的 SpineStage 网页版（拖模型进网页看、`?embed` 嵌入）已下线删除。
 
 macOS 版的部署、用法、文件位置见 [macos/README.md](macos/README.md)，设计取舍见 [macos/plan.md](macos/plan.md)。

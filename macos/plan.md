@@ -216,7 +216,7 @@ App（每 5 秒，先 App 后前端）
 ## 目录
 
 ```
-SpineStage/
+RhodeSide/
   macos/
     plan.md                  ← 本文件
     Package.swift            ← SwiftPM，命令行 `swift build` 就能编，不需要 .xcodeproj；不用 `resources:` / Bundle.module

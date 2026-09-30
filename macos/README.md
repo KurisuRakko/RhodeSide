@@ -28,7 +28,7 @@ Mac 通过 `ssh mac` 连接（可用 `RHODESIDE_MAC` 覆盖）。Mac 上的构�
 | 前端（`web/pet.html`、`web/settings.html`、`web/src/pet\|settings\|stage/`） | `publish.mjs` 打包并用 Ed25519 签名，写入 `/opt/stacks/rhodeside/data`；容器 `rhodeside-updates` 经 cloudflared 对外提供 `https://rhodeside.rakko.cn/v1/manifest.json` | App 每 5 秒检查一次，验签和 sha256 通过后替换 `~/Library/Application Support/Rhodeside/web-dev/` 并原地重新加载，桌宠位置不变 |
 | 行为参数（`web/public/rhodeside-tuning.json`：待机 / 坐 / 睡时长、走路概率、跳窗概率、悬停透明度） | 随前端发布 | 重新载入前端时生效 |
 | Swift（壳） | `deploy.sh` 打包签名发布到 `v1/app.json` | App 下载验签后交给独立的交接任务（`launchctl submit`）：换掉 `.app`、重启；新版本 8 秒内没报告健康就自动回滚，该版本记入黑名单不再安装 |
-| 在线模型（只给登录用户） | 源文件放 `SpineStage/models-private/`（**不要放 web/public**），在 `macos/models.json` 加一条，`deploy.sh models` 发布到 `v1/models.json`（每个模型另有 `v1/previews/` 预览包：默认时装的基建模型） | 登录本身不下载任何模型：用户在模型库 / 设置里点了下载才装；已装的内容变了自动更新 |
+| 在线模型（只给登录用户） | 源文件放 `models-private/`（仓库根）（**不要放 web/public**），在 `macos/models.json` 加一条，`deploy.sh models` 发布到 `v1/models.json`（每个模型另有 `v1/previews/` 预览包：默认时装的基建模型） | 登录本身不下载任何模型：用户在模型库 / 设置里点了下载才装；已装的内容变了自动更新 |
 | 六星模型（PRTS） | `macos/scripts/fetch-prts.mjs` 从 PRTS 拉全部六星（全部时装 × 基建 / 正面 / 背面）到 `models-private/<干员名>/`，并登记进 `models.json`；定时器 `rhodeside-prts.timer`（systemd 用户单元，每天 04:30 左右）跑 `sync-prts.sh`，有变化就重新发布，日志 `~/.local/state/rhodeside/prts-sync.log` | 新干员 / 新时装第二天出现在模型库里 |
 | 本地模型 | 增删改 `~/Library/Application Support/Rhodeside/models/` | 设置页即时刷新，用到该模型的桌宠自动重新加载 |
 | 配置 | 编辑 `config.json` | 保存后立即生效；格式错误时忽略 |
