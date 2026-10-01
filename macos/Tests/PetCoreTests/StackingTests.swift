@@ -317,4 +317,38 @@ final class StackingTests: XCTestCase {
         XCTAssertEqual(top.below, "lower", "没有穿过下面那只的身子")
         XCTAssertEqual(top.foot.y, 190, accuracy: 0.01)
     }
+
+    /// 叠叠乐里谁都不躺下：下面睡着的被叠上来就坐起来，作息让睡、手动睡觉、自己挑动作都不睡
+    func testNobodySleepsInAStack() {
+        // 0.3：原地停留里落在「睡」那一份（sit 0.375 之后、sleep 0.625 之前）
+        let a = brain(at: CGPoint(x: 700, y: 70), dice: Dice([0.5]))
+        let b = brain(at: CGPoint(x: 300, y: 70), dice: Dice([0.5]))
+        let pets = [("A", a), ("B", b)]
+        let carry = { a.carrying = b.below == "A"; b.carrying = a.below == "B" }
+        run(pets, seconds: 0.1)
+        a.setActivity(.stay)
+        XCTAssertTrue(a.perform(.sleep))
+        XCTAssertEqual(a.behavior, .sleep)
+        drop(b, over: CGPoint(x: 710, y: 500), world(for: "B", pets))
+        run(pets, seconds: 1, each: carry)
+        XCTAssertEqual(b.below, "A")
+        XCTAssertEqual(a.behavior, .sit, "被叠上来就坐起来")
+        XCTAssertFalse(a.perform(.sleep))
+        XCTAssertFalse(b.perform(.sleep))
+        for x in [a, b] { x.setRest(.asleep) }
+        run(pets, seconds: 0.1, each: carry)
+        XCTAssertEqual(a.behavior, .sit)
+        XCTAssertEqual(b.behavior, .sit)
+        // 醒来：作息让的那次能解除（A 是原地停留里手动让睡的，改成一直坐着，醒来也不动）
+        for x in [a, b] { x.setRest(.awake) }
+        XCTAssertEqual(b.behavior, .idle)
+        XCTAssertEqual(a.behavior, .sit)
+        a.setActivity(.auto)
+        run(pets, seconds: 120, each: {
+            carry()
+            XCTAssertNotEqual(a.behavior, .sleep)
+            XCTAssertNotEqual(b.behavior, .sleep)
+        })
+        XCTAssertEqual(b.below, "A")
+    }
 }

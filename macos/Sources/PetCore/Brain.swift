@@ -205,6 +205,10 @@ public final class Brain {
     private var restOwned = false
     /// 深夜：自由活动时更容易睡着
     public var night = false
+    /// 头上叠着别的小人（原生层每帧设）：叠叠乐里谁都不躺下（睡觉），作息让睡就坐着
+    public var carrying = false
+    /// 在一摞里（站在别人头上，或者头上有人）
+    public var inStack: Bool { isOnPet || carrying }
     /// 点一下、控制面板转身、转向同伴之后这么久不跟着鼠标转（不然马上被转回去）
     public static let faceHold = 3.0
     private var faceHeld = 0.0
@@ -397,7 +401,8 @@ public final class Brain {
     public func setRest(_ level: RestLevel) {
         restLevel = level
         guard isStanding, !battle else { return }
-        let r = params.roles
+        var r = params.roles
+        if inStack { r.sleep = nil } // 叠叠乐里不躺下
         guard level != .awake else {
             guard restOwned else { return }
             restOwned = false
@@ -546,7 +551,7 @@ public final class Brain {
         }
         let r = params.roles
         switch b {
-        case .sit where r.sit != nil, .sleep where r.sleep != nil, .interact where r.interact != nil, .idle:
+        case .sit where r.sit != nil, .sleep where r.sleep != nil && !inStack, .interact where r.interact != nil, .idle:
             enter(b)
             if activity == .stay, b == .sit || b == .sleep { timer = .infinity }
             return true
@@ -630,6 +635,12 @@ public final class Brain {
         foot = CGPoint(x: x, y: p.segment.y)
         support = .on(kind, dx: x - p.anchorX)
         if seekVisible(p, world) { return }
+        // 叠叠乐里不躺下：睡着的被人叠上来、或者叠上去时正睡着，改成坐着（没有坐下动画就站着）
+        if behavior == .sleep, inStack {
+            let keep = timer, owned = restOwned
+            enter(params.roles.sit != nil ? .sit : .idle)
+            if !keep.isFinite { timer = keep; restOwned = owned } // 作息 / 原地停留让它一直睡的，改成一直坐
+        }
 
         switch behavior {
         case .walk:
@@ -646,7 +657,8 @@ public final class Brain {
 
     private func decide(_ p: Platform, _ world: World) {
         let r = random()
-        let roles = params.roles
+        var roles = params.roles
+        if inStack { roles.sleep = nil } // 叠叠乐里不躺下
         let t = chances()
         if battle { return enter(.idle) }
         // 叠在别人头上、脚下被盖住了（又没露出来的地方可去）：不回集合点，也不走（按原地停留来坐、睡、待机）

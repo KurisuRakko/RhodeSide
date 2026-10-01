@@ -317,6 +317,7 @@ final class Pet: NSObject {
         lastTick = now
         guard info != nil, !hidden else { return }
         if brain.facePending, now - faceSentAt > 0.25 { brain.facePending = false }
+        brain.carrying = manager.pets.contains { $0.brain.below == config.id }
         let world = manager.world(for: self)
         if let p = press, p.moved {
             let m = NSEvent.mouseLocation
