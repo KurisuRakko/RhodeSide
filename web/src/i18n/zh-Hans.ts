@@ -90,7 +90,6 @@ export const zhHans = {
     logUploadNote: '日志每天自动上传一次，出错退出后会立即上传，用于排查问题（内容是运行记录：系统版本、屏幕、账号名、电脑名和出错信息，不含模型文件）。',
     showLogs: '显示日志',
     uploading: '正在上传…',
-    uploadNow: '立即上传日志',
     showModels: '显示模型文件夹',
     showConfig: '显示配置文件',
     snapshot: '诊断快照',

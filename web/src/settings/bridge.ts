@@ -184,7 +184,6 @@ export type Outgoing =
   | { type: 'snapshot' }
   | { type: 'reloadWeb' }
   | { type: 'checkUpdates' }
-  | { type: 'uploadLogs' }
   | { type: 'perform'; id?: string; behavior: Behavior }
   | { type: 'playCombo'; id: string; combo: string }
   | { type: 'turn'; id: string }
@@ -364,10 +363,6 @@ async function mock(msg: Outgoing) {
       break
     case 'perform':
       for (const p of s.pets) if (!msg.id || p.id === msg.id) p.behavior = msg.behavior
-      break
-    case 'uploadLogs':
-      if (s.logUpload) s.logUpload.lastUpload = new Date().toISOString()
-      toast('日志已上传（浏览器预览）')
       break
     case 'authLogin':
       s.auth = { ...s.auth, phase: 'signedIn', user: 'Rakko（预览）', error: null }

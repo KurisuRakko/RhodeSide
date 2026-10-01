@@ -148,11 +148,6 @@ export function SettingsPage({ state }: { state: NativeState }) {
           {state.logUpload && <p className="rs-hint">{s.logUploadNote}</p>}
           <div className="rs-row">
             <Button onClick={() => send({ type: 'reveal', what: 'logs' })}>{s.showLogs}</Button>
-            {state.logUpload && (
-              <Button disabled={state.logUpload.busy} onClick={() => send({ type: 'uploadLogs' })}>
-                {state.logUpload.busy ? s.uploading : s.uploadNow}
-              </Button>
-            )}
             <Button onClick={() => send({ type: 'reveal', what: 'models' })}>{s.showModels}</Button>
             <Button onClick={() => send({ type: 'reveal', what: 'config' })}>{s.showConfig}</Button>
             <Button onClick={() => send({ type: 'snapshot' })}>

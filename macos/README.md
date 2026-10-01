@@ -43,7 +43,7 @@ App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前�
 总是开，没有开关（`Sources/Rhodeside/LogUploader.swift`）：
 - 每天一次，把 `rhodeside.log` 新增的部分（单次最多 4MB，超了只传最后的）传到 `POST https://rhodeside.rakko.cn/v1/logs`；
 - 上次没正常退出（崩溃、被强制结束；正常退出和 SIGTERM 不算）：启动 3 秒后立刻传（两分钟后再补查一次系统崩溃报告），连同 `~/Library/Logs/DiagnosticReports/` 里没传过的系统崩溃报告（`Rhodeside*.ips`，以及 responsibleProc 是 Rhodeside 的 WebKit 网页 / GPU 进程报告）；
-- 设置 → 故障排查 →「立即上传日志」。
+- 没有手动上传按钮（设置里只剩「显示日志」）。
 登录了带票据，按 Priestess 账号归档；没登录也传（进 `_anon/`，body ≤ 2MB，最多 200 台）。失败不前移游标，每小时再试。
 服务器：`auth` 容器（`auth/server.mjs`）存到 `/opt/stacks/rhodeside/logs/<账号|_anon>/<设备 UUID>/`
 （`rhodeside.log` 超 20MB 轮转一份、`crash/*.ips` 留 20 份、`meta.json` 记电脑名 / 用户名 / 版本 / 最后上传时间）；nginx 每 IP 每分钟 6 次。
@@ -64,7 +64,7 @@ App 只接受构建号更大的包；`web-dev` 的构建号不比 App 自带前�
 
 ### 鉴权（Priestess）
 
-- App：必须登录（设置 → 账号，或新装时的引导页；默认浏览器，PKCE）。令牌存 `auth.json`（600）。App 不再内置模型，跳过登录就没有桌宠。
+- App：必须登录（设置 → 账号，或新装时的引导页；默认浏览器，PKCE）。令牌存 `auth.json`（600）。refresh token 30 天有效、每次刷新轮转：App 开着时距上次续签超过 12 小时就主动刷新（启动 5 秒后、唤醒 1 分钟后、之后每小时各看一次），所以每天打开就永远不掉登录；超过 30 天没打开会退回未登录，重新登录即可。App 不再内置模型，跳过登录就没有桌宠。
 - 服务器：`/opt/stacks/rhodeside` 的 `auth` 容器（`auth/server.mjs`）用 access token 换 10 分钟 HMAC 票据；nginx `auth_request` 校验。
   `compose.yaml` 里 `ENFORCE: "1"`（已启用）：清单和包必须带票据。临时关掉改成 `"0"` 再 `docker compose up -d auth`。
 - 回跳页 `https://rhodeside.rakko.cn/auth/callback` 随前端发布。设计细节见 [plan.md](plan.md)。

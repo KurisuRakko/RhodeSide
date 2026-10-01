@@ -90,7 +90,6 @@ export const en: Messages = {
       'Logs are uploaded once a day, and right away after a crash, to help track down problems. They contain run records — OS version, screens, account name, computer name and errors — but no model files.',
     showLogs: 'Show logs',
     uploading: 'Uploading…',
-    uploadNow: 'Upload logs now',
     showModels: 'Show models folder',
     showConfig: 'Show config file',
     snapshot: 'Diagnostic snapshot',

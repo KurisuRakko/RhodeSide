@@ -7,6 +7,11 @@ import PetCore
 /// 默认浏览器打开 `/login` → 登录后跳到 `https://rhodeside.rakko.cn/auth/callback#login_code=…`
 /// → 那个静态页转给 `rhodeside://auth/callback?login_code=…&state=…` → 这里 `/exchange` 换令牌。
 /// refresh token 轮转一次性且有复用检测：所有刷新走同一个 Task（单飞），否则并发刷新会撤掉整条会话。
+///
+/// 续签：refresh token 30 天有效，每次刷新换一枚新的。App 开着时每小时看一眼（启动、唤醒也看），
+/// 距上次拿到新 refresh token 超过 12 小时就主动刷新一次——每天打开就一直续上、不会掉登录；
+/// 太久（30 天）没打开，Priestess 回 invalid_refresh_token，退回未登录要重新登录（正常现象）。
+/// 网络不通不退登录，令牌留着下个小时再试。
 final class Auth {
     enum Phase: String {
         case disabled, signedOut, signingIn, signedIn
@@ -24,6 +29,11 @@ final class Auth {
     /// 进行中的登录（state → verifier）：可能开了好几个登录页，只保留最近 3 个
     private var pending: [(state: String, verifier: String, started: Date)] = []
     private var refreshing: Task<String, Error>?
+    private var renewTimer: Timer?
+    /// clearTokens 一次加一：分辨刷新任务是不是属于当前这组令牌
+    private var generation = 0
+    /// 距上次拿到新 refresh token 超过这么久就主动续签
+    static let renewAfter: TimeInterval = 12 * 3600
     private let session: URLSession
     var onChange: (() -> Void)?
 
@@ -33,6 +43,8 @@ final class Auth {
         /// access token 的 exp（从 JWT 里读，不验签：只用来决定什么时候提前刷新）
         var accessExpires: Date
         var user: String?
+        /// 上次拿到这枚 refresh token 的时间（登录或刷新）；老文件没有这项，按「该续签了」处理
+        var renewed: Date?
     }
 
     struct AuthError: LocalizedError {
@@ -150,6 +162,25 @@ final class Auth {
         if let refresh { Task { @MainActor in _ = try? await self.post("/logout", ["refresh_token": refresh]) } }
     }
 
+    /* ---------------------------------------------------------------- 续签 */
+
+    /// PetManager 启动时调：几秒后看一次，之后每小时一次
+    func startRenewal() {
+        let t = Timer(timeInterval: 3600, repeats: true) { [weak self] _ in self?.renewIfDue() }
+        RunLoop.main.add(t, forMode: .common)
+        renewTimer = t
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.renewIfDue() }
+    }
+
+    /// 已登录且上次续签超过 12 小时：主动刷新一次（平时换票据时已经在刷新，这里兜住关了自动更新、一直没用到令牌的情况）
+    func renewIfDue() {
+        guard phase == .signedIn, let t = tokens, refreshing == nil else { return }
+        if let r = t.renewed, Date().timeIntervalSince(r) < Self.renewAfter { return }
+        Task { @MainActor in
+            if (try? await self.refresh()) != nil { Log.info("Priestess：已续签登录") }
+        }
+    }
+
     /* ---------------------------------------------------------------- 令牌 */
 
     /// 可用的 access token；快过期时先刷新（单飞）
@@ -177,16 +208,20 @@ final class Auth {
     @MainActor
     private func refresh() async throws -> String {
         if let running = refreshing { return try await running.value }
+        let gen = generation
         let task = Task<String, Error> { @MainActor in
-            defer { refreshing = nil }
+            // 刷新途中退出 / 重新登录了（clearTokens 换了代）：这个旧任务别动新会话的单飞槽和状态
+            defer { if generation == gen { refreshing = nil } }
             guard let t = tokens else { throw Failure.notSignedIn }
             do {
                 let json = try await post("/refresh", ["refresh_token": t.refresh])
-                // 刷新途中退出或重新登录了：这组令牌作废，别写回去
-                guard tokens?.refresh == t.refresh else { throw Failure.notSignedIn }
+                guard generation == gen, tokens?.refresh == t.refresh else { throw Failure.notSignedIn }
                 try store(json)
+                // 之前刷新失败留下的错误（多半是断网）已经过去了
+                if error != nil { error = nil; onChange?() }
                 return tokens!.access
             } catch {
+                guard generation == gen else { throw error }
                 handle(error)
                 onChange?()
                 throw error
@@ -215,7 +250,7 @@ final class Auth {
             throw AuthError(status: 200, code: "bad_response", message: tr("Priestess 返回的令牌不完整", "Priestess 傳回的權杖不完整", "Priestess returned an incomplete token"))
         }
         let exp = Self.jwtExpiry(access) ?? Date().addingTimeInterval(600)
-        let t = Tokens(access: access, refresh: refresh, accessExpires: exp, user: tokens?.user ?? user)
+        let t = Tokens(access: access, refresh: refresh, accessExpires: exp, user: tokens?.user ?? user, renewed: Date())
         tokens = t
         Self.saveTokens(t)
     }
@@ -231,7 +266,7 @@ final class Auth {
             case (401, "invalid_refresh_token"), (401, "invalid_login_code"):
                 clearTokens()
                 phase = .signedOut
-                error = e.code == "invalid_login_code" ? tr("登录码已失效，请重新登录", "登入碼已失效，請重新登入", "The sign-in code expired. Please sign in again") : tr("登录已失效，请重新登录", "登入已失效，請重新登入", "Your sign-in expired. Please sign in again")
+                error = e.code == "invalid_login_code" ? tr("登录码已失效，请重新登录", "登入碼已失效，請重新登入", "The sign-in code expired. Please sign in again") : tr("登录已过期，请重新登录", "登入已過期，請重新登入", "Your sign-in expired. Please sign in again")
             case (403, "app_disabled"), (404, "app_not_found"):
                 clearTokens()
                 phase = .signedOut
@@ -269,6 +304,7 @@ final class Auth {
         tokens = nil
         user = nil
         refreshing = nil
+        generation += 1
         try? FileManager.default.removeItem(at: Paths.authFile)
     }
 

@@ -87,7 +87,6 @@ export const zhHant: Messages = {
     logUploadNote: '日誌每天自動上載一次，出錯退出後會即時上載，用於排查問題（內容是運行記錄：系統版本、屏幕、帳戶名稱、電腦名稱和出錯資料，不含模型檔案）。',
     showLogs: '顯示日誌',
     uploading: '正在上載…',
-    uploadNow: '立即上載日誌',
     showModels: '顯示模型檔案夾',
     showConfig: '顯示設定檔',
     snapshot: '診斷快照',

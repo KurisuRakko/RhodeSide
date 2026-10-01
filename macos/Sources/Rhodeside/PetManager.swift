@@ -98,6 +98,7 @@ final class PetManager {
         logUploader.onChange = { [weak self] in self?.pushState() }
         logUploader.start()
         monitor = ResourceMonitor { [weak self] in self?.monitoredProcesses() ?? [] }
+        auth.startRenewal()
     }
 
     func start() {
@@ -136,6 +137,8 @@ final class PetManager {
         })
         observers.append(ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.rescan()
+            // 合盖睡了一夜：醒来一分钟后续签（等网络连稳：请求发出去了回应却丢了，旧 refresh token 再用会被判复用、撤掉整条会话）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 60) { self?.auth.renewIfDue() }
         })
         observers.append(ws.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
             for p in self?.pets ?? [] { p.setSuspended(true) }
