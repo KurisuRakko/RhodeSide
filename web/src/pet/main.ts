@@ -120,8 +120,15 @@ let state: any = null
 let layout: Layout | null = null
 let scale = 1
 let dir: 1 | -1 = 1
+// 画出来的朝向：转身时从 ±1 平滑过渡到 dir（横向压扁再展开），不是一帧翻过去
+let turn = 1
+let turnFrom = 1
+let turnT = 1
+/** 整个转身（从一边到另一边）用多久，秒 */
+const TURN_TIME = 0.22
 let speed = 1
 let pendingFaced = false
+let snapFace = true
 let loadSeq = 0
 let cssW = 1
 let cssH = 1
@@ -181,6 +188,10 @@ async function load(msg: LoadMsg) {
     const old = model
     model = next
     skeleton = new spine.Skeleton(next.data)
+    // 新模型直接按当前朝向出场；原生层载入后发的第一个 face 也不转（见 face）
+    turn = dir
+    turnT = 1
+    snapFace = true
     const skin = next.skins.includes('default') ? 'default' : next.skins[0]
     if (skin) skeleton.setSkinByName(skin)
     skeleton.setToSetupPose()
@@ -253,7 +264,8 @@ function frame(now: number) {
     return
   }
   if (minFrameMs && last && now - last < minFrameMs) return
-  const dt = last ? Math.min(0.05, (now - last) / 1000) * speed : 0
+  const realDt = last ? Math.min(0.05, (now - last) / 1000) : 0
+  const dt = realDt * speed
   last = now
   resize()
   ctx.gl.clearColor(0, 0, 0, 0)
@@ -265,8 +277,15 @@ function frame(now: number) {
 
   state.update(dt)
   state.apply(skeleton)
-  skeleton.scaleX = scale * dir
-  skeleton.scaleY = scale
+  if (turnT < 1) {
+    turnT = Math.min(1, turnT + realDt / (TURN_TIME * Math.max(Math.abs(dir - turnFrom) / 2, 0.01)))
+    const e = turnT * turnT * (3 - 2 * turnT)
+    turn = turnFrom + (dir - turnFrom) * e
+  }
+  // 转到一半（压到最窄）时身子微微抬一下，看起来像真的转过去
+  const pop = turnT < 1 ? 0.03 * Math.sin(Math.PI * turnT) : 0
+  skeleton.scaleX = scale * turn
+  skeleton.scaleY = scale * (1 + pop)
   const placed = posW > 0 && Math.abs(posW - cssW) < 0.5
   // 在 App 里：还没收到对得上当前窗口宽度的位置就先不画，免得在带子正中间闪一帧
   if (native && !placed) {
@@ -282,7 +301,8 @@ function frame(now: number) {
   renderer.end()
   flushReads()
 
-  if (pendingFaced) {
+  // 过了中线（已经看向新方向）就回执，原生层这时候才开始走，不会倒着滑
+  if (pendingFaced && turn * dir > 0) {
     pendingFaced = false
     post({ type: 'faced', dir })
   }
@@ -381,6 +401,15 @@ function receive(msg: Incoming) {
       break
     case 'face':
       dir = msg.dir < 0 ? -1 : 1
+      if (!skeleton || snapFace) {
+        // 还没载入 / 刚载入后原生层告诉初始朝向：直接按新朝向出场，不在第一帧转一下
+        snapFace = false
+        turn = dir
+        turnT = 1
+      } else if (turn !== dir) {
+        turnFrom = turn
+        turnT = 0
+      }
       pendingFaced = true
       break
     case 'speed':
