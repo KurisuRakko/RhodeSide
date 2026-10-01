@@ -217,6 +217,7 @@ async function load(msg: LoadMsg) {
       layout,
       rest: toPt(next.rest, next, scale),
       union: toPt(next.union, next, scale),
+      heights: next.heights,
     })
     const voiceSet = await voice
     if (seq === loadSeq) void useVoice(voiceSet, msg.model ?? msg.files[0]?.split('/')[0] ?? '', chosen.group)

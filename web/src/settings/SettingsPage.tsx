@@ -52,6 +52,22 @@ export function SettingsPage({ state }: { state: NativeState }) {
           checked={config.hideInFullscreen}
           onChange={(v) => send({ type: 'updateGlobal', patch: { hideInFullscreen: v } })}
         />
+        {config.watchMouse !== undefined && (
+          <SwitchRow
+            label={s.watchMouse}
+            hint={s.watchMouseHint}
+            checked={config.watchMouse}
+            onChange={(v) => send({ type: 'updateGlobal', patch: { watchMouse: v } })}
+          />
+        )}
+        {config.restWhenIdle !== undefined && (
+          <SwitchRow
+            label={s.restWhenIdle}
+            hint={s.restWhenIdleHint}
+            checked={config.restWhenIdle}
+            onChange={(v) => send({ type: 'updateGlobal', patch: { restWhenIdle: v } })}
+          />
+        )}
         <IgnoreList apps={config.ignoredApps} defaults={state.defaultIgnoredApps} />
         {voice && (
           <>

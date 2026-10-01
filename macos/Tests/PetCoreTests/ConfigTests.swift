@@ -143,4 +143,22 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-HK"]), .zhHant)
         XCTAssertEqual(UILanguage.resolve("system", preferred: ["yue-Hant-HK"]), .zhHant)
     }
+
+    func testAttentionFieldsDefaultAndValidate() throws {
+        let c = try JSONDecoder().decode(AppConfig.self, from: Data("{}".utf8))
+        XCTAssertTrue(c.watchMouse)
+        XCTAssertTrue(c.restWhenIdle)
+        let off = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"watchMouse": false, "restWhenIdle": false}"#.utf8))
+        XCTAssertFalse(off.watchMouse)
+        XCTAssertFalse(off.restWhenIdle)
+
+        let old = try JSONDecoder().decode(Tuning.self, from: Data(#"{"idle": [1, 2]}"#.utf8))
+        XCTAssertEqual(old.restSit, 60)
+        XCTAssertEqual(old.restSleep, 180)
+        XCTAssertEqual(old.nightHours, [0, 6])
+        let bad = try JSONDecoder().decode(Tuning.self, from: Data(#"{"restSit": 300, "restSleep": 100, "lookRadius": -1, "nightHours": [25, 3]}"#.utf8))
+        XCTAssertEqual(bad.restSleep, 300, "睡着不能早于坐下")
+        XCTAssertEqual(bad.lookRadius, 2.5)
+        XCTAssertEqual(bad.nightHours, [0, 6])
+    }
 }

@@ -22,7 +22,17 @@ macOS 版的部署、用法、文件位置见 [macos/README.md](macos/README.md)
      transport 已认得 WebKitGTK（与 macOS 同接口）和 WebView2（`chrome.webview`）；
   2. `rhodeside-res://` 资源服务：前端静态文件，加上 `models/<名字>/…`（已装模型）、`previews/<id>/…`（模型库预览）、
      `import/<批次>/…`（导入检查）三个前缀；文件列表由原生消息（`load`、`preview` 等）带过去，壳不用提供 `index.json`；
-  3. 行为状态机（照 `PetCore/Brain.swift` 移植）。
+  3. 行为状态机（照 `PetCore/Brain.swift` 移植，`Companions` / `Stacking` / `Attention` 一起照搬）；
+  4. 看鼠标 / 作息的两个读数（照 `macos/Sources/Rhodeside/UserActivity.swift` 重写），每 0.1 秒喂给 `PetCore/Attention.swift`：
+
+     | 平台 | 键鼠闲置秒数 | 鼠标全局坐标 | 有程序不让屏幕熄灭（放视频） |
+     |---|---|---|---|
+     | macOS | `CGEventSource.secondsSinceLastEventType` | `NSEvent.mouseLocation` | `IOPMCopyAssertionsStatus` 的 PreventUserIdleDisplaySleep |
+     | Windows | `GetLastInputInfo` | `GetCursorPos` | `CallNtPowerInformation(SystemExecutionState)` 的 `ES_DISPLAY_REQUIRED` |
+     | Linux X11 | XScreenSaver `XScreenSaverQueryInfo` | `XQueryPointer` | D-Bus `org.gnome.SessionManager.IsInhibited(8)` / `org.freedesktop.PowerManagement.Inhibit.HasInhibit` |
+     | Linux Wayland | `ext-idle-notify-v1`，或 D-Bus `org.freedesktop.ScreenSaver` / GNOME `IdleMonitor` | 读不到全局指针：只在指针落在自己的全屏透明层上时给，否则 nil | 同 X11 |
+
+     拿不到就给 nil，`Attention` 只关掉对应的功能（没有闲置时长就不作息，没有鼠标就不转头，读不到视频就当没在放）。
 
 平台路线（2026-09-30 定）：
 - **macOS**：现在唯一在维护的版本。

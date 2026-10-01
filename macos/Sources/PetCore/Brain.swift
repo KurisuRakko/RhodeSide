@@ -10,6 +10,16 @@ public enum Behavior: String, Codable, Sendable, CaseIterable {
     case idle, walk, sit, sleep, interact, held, fall
 }
 
+/// 跟着电脑作息的档位（`Attention` 按键鼠闲置时长定）
+public enum RestLevel: String, Codable, Sendable {
+    /// 照常活动
+    case awake
+    /// 闲置了一会儿：坐着（或睡着）不走
+    case resting
+    /// 闲置很久：睡着
+    case asleep
+}
+
 /// 动画角色 → 动画名（网页按命名规则认出来的；没有就是 nil）
 public struct Roles: Equatable, Sendable {
     public var idle: String?
@@ -37,13 +47,19 @@ public struct PetParams: Equatable, Sendable {
     public var roles: Roles
     /// 互动动画时长（秒），网页的 animDone 没来时的兜底
     public var interactDuration: Double
+    /// 坐着 / 睡着时头顶的高度，按待机身高的比例（网页量的；叠叠乐的头顶跟着矮下去）
+    public var sitHeight: Double
+    public var sleepHeight: Double
 
-    public init(height: Double = 120, halfWidth: Double = 30, stride: Double = 1, roles: Roles = Roles(), interactDuration: Double = 1) {
+    public init(height: Double = 120, halfWidth: Double = 30, stride: Double = 1, roles: Roles = Roles(), interactDuration: Double = 1,
+                sitHeight: Double = 1, sleepHeight: Double = 1) {
         self.height = height
         self.halfWidth = halfWidth
         self.stride = stride
         self.roles = roles
         self.interactDuration = interactDuration
+        self.sitHeight = sitHeight
+        self.sleepHeight = sleepHeight
     }
 
     /// 走路速度（pt/s）：和 engine.ts 一样的经验公式（静止高度 × 0.42 × 步速倍率）
@@ -162,6 +178,15 @@ public final class Brain {
     private var mayStack = false
     /// 叠在别人头上时，下面那只带着自己横着走的速度（给渲染端外推用）
     private var carryVX = 0.0
+    /// 作息档位（`Attention` 每 0.1 秒设一次）
+    public private(set) var restLevel: RestLevel = .awake
+    /// 现在的坐 / 睡 / 待机是作息让的（醒来时只解除这种，不碰用户在「原地停留」里手动设的）
+    private var restOwned = false
+    /// 深夜：自由活动时更容易睡着
+    public var night = false
+    /// 点一下、控制面板转身、转向同伴之后这么久不跟着鼠标转（不然马上被转回去）
+    public static let faceHold = 3.0
+    private var faceHeld = 0.0
 
     public init(params: PetParams, foot: CGPoint, random: @escaping () -> Double = { Double.random(in: 0..<1) }) {
         self.params = params
@@ -171,6 +196,14 @@ public final class Brain {
     }
 
     public var isMoving: Bool { behavior == .walk || behavior == .fall || behavior == .held }
+
+    /// 现在头顶离脚多高（叠叠乐的头顶平台）：在播坐 / 睡动画时（连招里的那一步也算）按网页量的比例矮下去
+    public var headHeight: Double {
+        guard isStanding, let name = anim?.name else { return params.height }
+        if name == params.roles.sleep { return params.height * params.sleepHeight }
+        if name == params.roles.sit { return params.height * params.sitHeight }
+        return params.height
+    }
 
     /// 站在平台上（能做动作、能走）
     public var isStanding: Bool { support != .none && behavior != .held && behavior != .fall }
@@ -233,6 +266,7 @@ public final class Brain {
     public func click() {
         guard support != .none, behavior != .held, behavior != .fall else { return }
         emit(.clicked)
+        faceHeld = Self.faceHold
         if battle {
             if !play(attack) { dir = -dir }
         } else if params.roles.interact != nil {
@@ -252,6 +286,7 @@ public final class Brain {
             timer = max(timer, rand(tuning.idle[0], tuning.idle[1]))
         }
         dir = -dir
+        faceHeld = Self.faceHold
         return true
     }
 
@@ -273,7 +308,7 @@ public final class Brain {
     /// 走到了面朝 `face`。坐着也会站起来；睡觉、做动作、战斗形态、原地停留、没有走路动画都不走。
     @discardableResult
     public func go(to p: CGPoint, face: Double? = nil, world: World) -> Bool {
-        guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, !isOnPet, params.roles.move != nil,
+        guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, !isOnPet, restLevel == .awake, params.roles.move != nil,
               let here = platform(world) else { return false }
         return approach(p, face: face, here, world)
     }
@@ -292,10 +327,62 @@ public final class Brain {
     public func react(towardX x: Double) -> Bool {
         guard isStanding, behavior != .sleep else { return false }
         face(towardX: x)
+        faceHeld = Self.faceHold
         // 原地停留时手动让它坐着的（计时无限）只转身，不打断
         guard !battle, behavior != .interact, timer.isFinite, params.roles.interact != nil else { return true }
         enter(.interact)
         return true
+    }
+
+    /* ---------------------------------------------------------------- 作息 / 看鼠标（Attention） */
+
+    /// 设作息档位，可以每次都调（同一档重复调不会重播动画）。
+    /// 闲置：停下来坐着（睡着也算），计时无限；很久：睡着；模型缺睡觉动画就坐着，缺坐下动画就睡，两样都没有就站着。
+    /// 正在做动作、被拎着、在下落、战斗形态的不管（下一次调用再说）；「原地停留」里手动设的坐 / 睡不动。
+    /// 醒来：只解除作息让的那次，回到待机。
+    public func setRest(_ level: RestLevel) {
+        restLevel = level
+        guard isStanding, !battle else { return }
+        let r = params.roles
+        guard level != .awake else {
+            guard restOwned else { return }
+            restOwned = false
+            if [.idle, .sit, .sleep].contains(behavior) { enter(.idle) }
+            return
+        }
+        let want: Behavior = level == .asleep && r.sleep != nil ? .sleep : r.sit != nil ? .sit : r.sleep != nil ? .sleep : .idle
+        // 闲置一会儿时本来就在睡也行
+        let fine: [Behavior] = level == .resting && r.sleep != nil && want == .sit ? [.sit, .sleep] : [want]
+        if fine.contains(behavior) {
+            if timer.isFinite {
+                timer = .infinity
+                restOwned = true
+            }
+            return
+        }
+        let manual = [.sit, .sleep].contains(behavior) && !timer.isFinite && !restOwned
+        guard [.idle, .walk, .sit, .sleep].contains(behavior), !manual else { return }
+        enter(want)
+        timer = .infinity
+        restOwned = true
+    }
+
+    /// 转过去看某个横坐标：只在待机、坐着时转，不打断走路、睡觉、做动作；刚被点过 / 转过身的不转（`faceHold`）
+    @discardableResult
+    public func glance(towardX x: Double) -> Bool {
+        guard isStanding, behavior == .idle || behavior == .sit, !facePending, faceHeld <= 0 else { return false }
+        let d = x >= foot.x ? 1 : -1
+        guard d != dir else { return false }
+        dir = d
+        return true
+    }
+
+    /// 走 / 坐 / 睡的概率；深夜睡觉的那份乘 nightSleepBoost，多出来的从走路那份里扣（坐和继续待机不变）
+    private func chances() -> (walk: Double, sit: Double, sleep: Double) {
+        let t = tuning
+        guard night else { return (t.walkChance, t.sitChance, t.sleepChance) }
+        let z = min(t.sleepChance * t.nightSleepBoost, t.sleepChance + t.walkChance)
+        return (t.walkChance - (z - t.sleepChance), t.sitChance, z)
     }
 
     /// 脚下的平台（找不到就 nil）
@@ -428,6 +515,7 @@ public final class Brain {
     public func step(dt rawDt: Double, world: World) {
         guard rawDt > 0, !world.platforms.isEmpty else { return }
         let dt = min(rawDt, 0.05)
+        faceHeld = max(0, faceHeld - rawDt)
         switch behavior {
         case .held: return
         case .fall: fall(dt, world)
@@ -476,7 +564,7 @@ public final class Brain {
     private func decide(_ p: Platform, _ world: World) {
         let r = random()
         let roles = params.roles
-        let t = tuning
+        let t = chances()
         if battle { return enter(.idle) }
         // 叠在别人头上：不回集合点，也不走（按原地停留来坐、睡、待机）
         let stacked = isOnPet
@@ -490,14 +578,14 @@ public final class Brain {
             if roles.move != nil { startWalk(p, world) } else { enter(.idle) }
         case .stay:
             // 去掉走路那一份，坐、睡、待机按原来的比例
-            let rest = max(1 - t.walkChance, 0.0001)
-            if roles.sit != nil && r < t.sitChance / rest { enter(.sit) }
-            else if roles.sleep != nil && r < (t.sitChance + t.sleepChance) / rest { enter(.sleep) }
+            let rest = max(1 - t.walk, 0.0001)
+            if roles.sit != nil && r < t.sit / rest { enter(.sit) }
+            else if roles.sleep != nil && r < (t.sit + t.sleep) / rest { enter(.sleep) }
             else { enter(.idle) }
         case .auto:
-            if roles.move != nil && r < t.walkChance { startWalk(p, world) }
-            else if roles.sit != nil && r < t.walkChance + t.sitChance { enter(.sit) }
-            else if roles.sleep != nil && r < t.walkChance + t.sitChance + t.sleepChance { enter(.sleep) }
+            if roles.move != nil && r < t.walk { startWalk(p, world) }
+            else if roles.sit != nil && r < t.walk + t.sit { enter(.sit) }
+            else if roles.sleep != nil && r < t.walk + t.sit + t.sleep { enter(.sleep) }
             else { enter(.idle) }
         }
     }
@@ -574,11 +662,13 @@ public final class Brain {
             nx = min(max(nx, s.frame.minX + half), s.frame.maxX - half)
             velocity.dx = -velocity.dx * 0.4
         }
-        // 往下落时穿过的最高那个平台
+        // 往下落时穿过的最高那个平台。别人的头顶会随动作一下子升高（坐着的站起来），
+        // 正好升到脚上方时也算落上去，不然会穿过它的身子掉下去
         if ny <= old.y {
+            let rise = params.height * 0.6
             let hit = world.platforms
                 .filter { mayStack || !$0.kind.isPet }
-                .filter { $0.segment.y <= old.y + 0.5 && $0.segment.y >= ny && $0.segment.contains(x: nx, tolerance: 0) }
+                .filter { $0.segment.y <= old.y + ($0.kind.isPet ? rise : 0.5) && $0.segment.y >= ny && $0.segment.contains(x: nx, tolerance: 0) }
                 .max { $0.segment.y < $1.segment.y }
             if let p = hit { return land(on: p, x: nx) }
         }
@@ -658,6 +748,7 @@ public final class Brain {
     private func enter(_ b: Behavior) {
         behavior = b
         steps = []
+        restOwned = false // 作息让的那次由 setRest 在 enter 之后重新标上
         switch b {
         case .idle: timer = activity == .walk ? rand(tuning.walkPause[0], tuning.walkPause[1]) : rand(tuning.idle[0], tuning.idle[1])
         case .sit: timer = rand(tuning.sit[0], tuning.sit[1])

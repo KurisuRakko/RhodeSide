@@ -43,6 +43,9 @@ final class Pet: NSObject {
     private var sentPosVX: Double = .nan
     private var sentPosW: CGFloat = 0
     private var faceSentAt: CFTimeInterval = 0
+    /// 显示器睡了（页面暂停着）；醒来打招呼要等它亮
+    private var screenAsleep = false
+    private var greetPending = false
     private(set) var hidden = true
     private var wantHidden = false
     private var press: Press?
@@ -222,8 +225,10 @@ final class Pet: NSObject {
         let model = b.string("model") ?? config.model
         info = LoadedInfo(model: model, outfit: b.string("outfit") ?? "", group: b.string("group") ?? "", sets: sets, roles: roles, animations: anims, layout: layout, rest: rest)
         if model == config.model { lastError = nil }
+        let hs = b.dict("heights") // 老前端没有：按待机身高
         brain.params = PetParams(height: Double(rest.height), halfWidth: max(10, Double(rest.width) / 2), stride: config.stride, roles: roles,
-                                 interactDuration: anims[roles.interact ?? ""] ?? 1)
+                                 interactDuration: anims[roles.interact ?? ""] ?? 1,
+                                 sitHeight: hs?.double("sit") ?? 1, sleepHeight: hs?.double("sleep") ?? 1)
         // 正面 / 背面是战斗模型：不走动，待机循环控制面板选的动作，点一下播攻击。
         // 只认同时带基建组的（PRTS 那种布局）；只有一套骨骼的导入模型也会被归到「正面」，它们照常走
         let hasBase = sets.contains { $0["group"]?.hasPrefix("基建") == true }
@@ -330,7 +335,7 @@ final class Pet: NSObject {
 
     /// 给叠叠乐算头顶平台用
     var head: Stacking.Head {
-        Stacking.Head(id: config.id, foot: brain.foot, height: brain.params.height, halfWidth: brain.params.halfWidth,
+        Stacking.Head(id: config.id, foot: brain.foot, height: brain.headHeight, halfWidth: brain.params.halfWidth,
                       below: brain.below, usable: info != nil && !hidden)
     }
 
@@ -482,8 +487,13 @@ final class Pet: NSObject {
 
     /// 屏幕休眠（锁屏、合盖）时停掉渲染；不看窗口遮挡状态：透明窗口的遮挡判断不可靠
     func setSuspended(_ s: Bool) {
+        screenAsleep = s
         guard !hidden else { return }
         window.webView.send(["type": "pause", "paused": s])
+        if !s, greetPending {
+            greetPending = false
+            greet()
+        }
     }
 
     /// 「叫回来」：从主屏上方掉下来
@@ -679,6 +689,13 @@ extension Pet: MouseCatcherDelegate {
             // 基建形态点一下会说话（模型有 voice/ 才有声音，播什么由页面挑）
             if !brain.battle { window.webView.send(["type": "touch"]) }
         }
+    }
+
+    /// 从睡着里醒来打招呼（`Attention` 挑的那只）：和点一下一样说一句话。
+    /// 显示器刚亮、页面还在暂停时（醒来的输入比 screensDidWake 通知先到）等页面恢复再说
+    func greet() {
+        guard !brain.battle else { return }
+        if screenAsleep { greetPending = true } else { window.webView.send(["type": "touch"]) }
     }
 
     /// 最近 80ms 的鼠标位移估算扔出去的速度；松手前停住了就是 0

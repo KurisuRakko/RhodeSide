@@ -35,6 +35,8 @@ export interface LoadedModel {
   rest: Box
   /** 全部动画采样后的并集包围盒（查看模式取景用） */
   union: Box
+  /** 坐着 / 睡着时头顶离脚多高，按待机身高的比例（叠叠乐的头顶跟着矮下去）；没有这个动画就没有 */
+  heights: { sit?: number; sleep?: number }
 }
 
 const ROLE_NAMES: Record<keyof Roles, string[]> = {
@@ -164,7 +166,7 @@ export async function loadModel(ctx: any, set: ModelSet, pma: boolean): Promise<
 
     const animations = (data.animations as any[]).map((a) => ({ name: a.name as string, duration: a.duration as number }))
     const roles = detectRoles(animations.map((a) => a.name))
-    const { rest, union } = measure(data, roles, animations)
+    const { rest, union, heights } = measure(data, roles, animations)
     return {
       set,
       data,
@@ -175,6 +177,7 @@ export async function loadModel(ctx: any, set: ModelSet, pma: boolean): Promise<
       version,
       rest,
       union,
+      heights,
     }
   } catch (err) {
     for (const t of textures) t.dispose()
@@ -212,5 +215,27 @@ function measure(data: any, roles: Roles, animations: { name: string; duration: 
   const steps = animations.length > 24 ? 4 : 8
   let union: Box | null = rest
   for (const a of animations) union = unite(union, sample(a.name, steps))
-  return { rest, union: union ?? rest }
+  // 坐 / 睡的头顶：一个循环里采 8 帧取平均（呼吸起伏、偶尔抬手不至于让头顶上的小人一抖一抖）
+  const top = (name: string | null): number | undefined => {
+    if (!name || rest.h <= 0) return undefined
+    skeleton.setToSetupPose()
+    state.clearTracks()
+    const entry = state.setAnimation(0, name, true)
+    const duration = entry.animation.duration || 0
+    let sum = 0
+    let n = 0
+    for (let i = 0; i < 8; i += 1) {
+      state.update(i === 0 ? 0 : duration / 8)
+      state.apply(skeleton)
+      skeleton.updateWorldTransform()
+      const b = boundsOf(skeleton, offset, size, temp)
+      if (b) {
+        sum += b.y + b.h - rest.y
+        n += 1
+      }
+      if (duration === 0) break
+    }
+    return n > 0 ? Math.min(Math.max(sum / n / rest.h, 0.2), 1.5) : undefined
+  }
+  return { rest, union: union ?? rest, heights: { sit: top(roles.sit), sleep: top(roles.sleep) } }
 }

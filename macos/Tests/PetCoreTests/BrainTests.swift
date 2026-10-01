@@ -270,3 +270,83 @@ final class BrainTests: XCTestCase {
         XCTAssertEqual(t.hoverAlpha, Tuning().hoverAlpha)
     }
 }
+
+final class BrainRestTests: XCTestCase {
+    let screen = ScreenInfo(id: 1, frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 887))
+    var ground: Platform { Platform(kind: .ground(screen: 1), segment: Segment(y: 70, minX: 0, maxX: 1512), anchorX: 0) }
+    var world: World { World(platforms: [ground], screens: [screen]) }
+
+    func standing(roles: Roles = Roles(idle: "Relax", move: "Move", interact: "Interact", sit: "Sit", sleep: "Sleep"), dice: Dice = Dice([0.99])) -> Brain {
+        let b = Brain(params: PetParams(height: 120, halfWidth: 30, stride: 1, roles: roles, interactDuration: 1), foot: CGPoint(x: 500, y: 70), random: dice.next)
+        b.step(dt: 1.0 / 60, world: world)
+        return b
+    }
+
+    func testRestDoesNotTouchManualStaySitAndWakeLeavesIt() {
+        let b = standing()
+        b.setActivity(.stay)
+        XCTAssertTrue(b.perform(.sit))
+        b.setRest(.asleep)
+        XCTAssertEqual(b.behavior, .sit, "原地停留里手动坐下的不改成睡")
+        b.setRest(.awake)
+        XCTAssertEqual(b.behavior, .sit, "醒来也不把它叫起来")
+    }
+
+    func testWakeEndsRestAndGoIsRefusedWhileResting() {
+        let b = standing()
+        b.setRest(.resting)
+        XCTAssertEqual(b.behavior, .sit)
+        XCTAssertFalse(b.go(to: CGPoint(x: 1000, y: 70), world: world), "作息中套组也拉不走")
+        b.setRest(.awake)
+        XCTAssertEqual(b.behavior, .idle)
+        XCTAssertTrue(b.go(to: CGPoint(x: 1000, y: 70), world: world))
+    }
+
+    func testFallsBackWhenModelLacksAnimations() {
+        let noSleep = standing(roles: Roles(idle: "Relax", move: "Move", sit: "Sit"))
+        noSleep.setRest(.asleep)
+        XCTAssertEqual(noSleep.behavior, .sit)
+        // 骰子 0.1：平时待机结束就会走
+        let bare = standing(roles: Roles(idle: "Relax", move: "Move"), dice: Dice([0.1]))
+        bare.setRest(.asleep)
+        XCTAssertEqual(bare.behavior, .idle)
+        for _ in 0..<200 { bare.step(dt: 0.1, world: world) }
+        XCTAssertEqual(bare.behavior, .idle, "缺动画时原地站着，不自己走开")
+    }
+
+    func testRestStopsWalking() {
+        let b = standing()
+        XCTAssertTrue(b.go(to: CGPoint(x: 1000, y: 70), world: world))
+        b.setRest(.resting)
+        XCTAssertEqual(b.behavior, .sit)
+    }
+
+    func testNightMakesSleepMoreLikely() {
+        // 默认概率：走 0.6、坐 0.15、睡 0.1；r = 0.6 白天是坐下，深夜（睡 0.3，从走路里扣成 0.4）是睡觉
+        let day = standing(dice: Dice([0.6]))
+        for _ in 0..<150 { day.step(dt: 0.1, world: world) }
+        XCTAssertEqual(day.behavior, .sit)
+        let night = standing(dice: Dice([0.6]))
+        night.night = true
+        for _ in 0..<150 { night.step(dt: 0.1, world: world) }
+        XCTAssertEqual(night.behavior, .sleep)
+    }
+
+    func testNightKeepsSomeIdleInStayMode() {
+        // 原地停留：深夜坐 0.15 / (1 − 0.4)、睡 0.45 / 0.6，还剩 0.25 继续待机
+        let b = standing(dice: Dice([0.9]))
+        b.night = true
+        b.setActivity(.stay)
+        for _ in 0..<150 { b.step(dt: 0.1, world: world) }
+        XCTAssertEqual(b.behavior, .idle)
+    }
+
+    func testClickedTurnIsNotUndoneByGlance() {
+        let b = standing(roles: Roles(idle: "Relax", move: "Move"))
+        b.click()
+        XCTAssertEqual(b.dir, -1)
+        XCTAssertFalse(b.glance(towardX: 1000), "刚点过不跟着鼠标转回去")
+        for _ in 0..<70 { b.step(dt: 0.05, world: world) }
+        XCTAssertTrue(b.glance(towardX: 1000))
+    }
+}

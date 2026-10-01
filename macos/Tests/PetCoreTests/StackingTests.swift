@@ -203,4 +203,48 @@ final class StackingTests: XCTestCase {
         XCTAssertEqual(c.foot.x, 305, accuracy: 0.001)
         XCTAssertEqual(c.foot.y, 310)
     }
+
+    func testHeadLowersWhenBelowSitsAndTopFollows() {
+        let screen = ScreenInfo(id: 1, frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 887))
+        let ground = Platform(kind: .ground(screen: 1), segment: Segment(y: 70, minX: 0, maxX: 1512), anchorX: 0)
+        let roles = Roles(idle: "Relax", move: "Move", interact: "Interact", sit: "Sit", sleep: "Sleep")
+        let lower = Brain(params: PetParams(height: 120, halfWidth: 30, roles: roles, sitHeight: 0.6, sleepHeight: 0.4), foot: CGPoint(x: 500, y: 70), random: { 0.99 })
+        let top = Brain(params: PetParams(height: 100, halfWidth: 25, roles: roles), foot: CGPoint(x: 500, y: 200), random: { 0.99 })
+        func world() -> World {
+            let heads = Stacking.heads(for: "top", pets: [Stacking.Head(id: "lower", foot: lower.foot, height: lower.headHeight, halfWidth: lower.params.halfWidth, below: nil)])
+            return World(platforms: [ground] + heads, screens: [screen])
+        }
+        top.teleport(to: CGPoint(x: 500, y: 200), stack: true)
+        for _ in 0..<60 {
+            lower.step(dt: 1.0 / 60, world: World(platforms: [ground], screens: [screen]))
+            top.step(dt: 1.0 / 60, world: world())
+        }
+        XCTAssertEqual(top.below, "lower")
+        XCTAssertEqual(top.foot.y, 190, accuracy: 0.01)
+        XCTAssertTrue(lower.perform(.sit))
+        XCTAssertEqual(lower.headHeight, 72, accuracy: 0.01)
+        top.step(dt: 1.0 / 60, world: world())
+        XCTAssertEqual(top.foot.y, 142, accuracy: 0.01, "下面那只坐下，上面那只跟着矮下去，不悬空")
+        XCTAssertEqual(top.below, "lower")
+        XCTAssertTrue(lower.perform(.idle))
+        top.step(dt: 1.0 / 60, world: world())
+        XCTAssertEqual(top.foot.y, 190, accuracy: 0.01)
+    }
+
+    func testFallingPetLandsOnHeadThatRisesPastItsFeet() {
+        let screen = ScreenInfo(id: 1, frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 887))
+        let ground = Platform(kind: .ground(screen: 1), segment: Segment(y: 70, minX: 0, maxX: 1512), anchorX: 0)
+        let roles = Roles(idle: "Relax", move: "Move", sit: "Sit", sleep: "Sleep")
+        let lower = Brain(params: PetParams(height: 120, halfWidth: 30, roles: roles, sitHeight: 0.5), foot: CGPoint(x: 500, y: 70), random: { 0.99 })
+        lower.step(dt: 1.0 / 60, world: World(platforms: [ground], screens: [screen]))
+        XCTAssertTrue(lower.perform(.sit))
+        let top = Brain(params: PetParams(height: 100, halfWidth: 25, roles: roles), foot: .zero, random: { 0.99 })
+        top.teleport(to: CGPoint(x: 500, y: 150), stack: true) // 脚在坐着的头顶（130）上方、站着的头顶（190）下方
+        top.step(dt: 1.0 / 60, world: World(platforms: [ground], screens: [screen])) // 先往下掉一点
+        XCTAssertTrue(lower.perform(.idle)) // 下面那只站起来，头顶升到 190
+        let heads = Stacking.heads(for: "top", pets: [Stacking.Head(id: "lower", foot: lower.foot, height: lower.headHeight, halfWidth: lower.params.halfWidth, below: nil)])
+        top.step(dt: 1.0 / 60, world: World(platforms: [ground] + heads, screens: [screen]))
+        XCTAssertEqual(top.below, "lower", "没有穿过下面那只的身子")
+        XCTAssertEqual(top.foot.y, 190, accuracy: 0.01)
+    }
 }

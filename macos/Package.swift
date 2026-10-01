@@ -15,6 +15,7 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("WebKit"),
                 .linkedFramework("ServiceManagement"),
+                .linkedFramework("IOKit"),
             ]
         ),
         .testTarget(name: "PetCoreTests", dependencies: ["PetCore"]),

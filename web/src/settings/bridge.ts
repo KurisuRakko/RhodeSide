@@ -52,6 +52,10 @@ export interface AppConfig {
   teams?: Team[]
   /** 界面语言：'system' | 'zh-Hans' | 'zh-Hant' | 'en'；老版本 App 没有 */
   language?: string
+  /** 鼠标靠近时转过来看；老版本 App 没有 */
+  watchMouse?: boolean
+  /** 键鼠闲置久了坐下、睡觉；老版本 App 没有 */
+  restWhenIdle?: boolean
 }
 
 export interface UpdateStatus {
@@ -252,6 +256,8 @@ async function fakeState(): Promise<NativeState> {
       voice: { enabled: true, volume: 0.7 },
       teams: [],
       language: 'system',
+      watchMouse: true,
+      restWhenIdle: true,
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],

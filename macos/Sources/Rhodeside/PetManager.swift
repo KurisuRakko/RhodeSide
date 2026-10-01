@@ -45,6 +45,9 @@ final class PetManager {
     /// 套组联动（同一 link 的桌宠结伴走、互相找、一起反应）
     private let companions = Companions()
     private var companionsAt: CFTimeInterval = 0
+    private let attention = Attention()
+    private var attentionAt: CFTimeInterval = 0
+    private var lastIdle: Double?
     /// 召出套组时还没下载、模型目录又还没拿到的模型名：目录到了再排队下载
     private var wantedModels: Set<String> = []
     /// 界面语言变了（AppDelegate 重建菜单）
@@ -102,6 +105,7 @@ final class PetManager {
             let urgent = self.pets.contains { $0.brain.behavior == .fall || $0.brain.behavior == .held }
             if urgent || tick % 3 == 0 { self.rescan() }
             self.stepCompanions()
+            self.stepAttention()
         }
         let save = Timer(timeInterval: 15, repeats: true) { [weak self] _ in self?.savePositions() }
         for t in [scan, save] { RunLoop.main.add(t, forMode: .common) }
@@ -268,7 +272,7 @@ final class PetManager {
         if let t = positions.pets[top.config.id], let l = positions.pets[lower.config.id] { dx = t.x - l.x }
         let half = b.params.halfWidth * Stacking.widthRatio
         dx = min(max(dx, -half), half)
-        top.brain.teleport(to: CGPoint(x: Double(b.foot.x) + dx, y: Double(b.foot.y) + b.params.height + 1), stack: true)
+        top.brain.teleport(to: CGPoint(x: Double(b.foot.x) + dx, y: Double(b.foot.y) + b.headHeight + 1), stack: true)
     }
 
     /// 叠在 `lower` 上面的窗口排在它前面（上面的小人脚踩在下面那只头上，要画在它前面）
@@ -416,6 +420,31 @@ final class PetManager {
             Companions.Member(id: $0.config.id, link: $0.config.link, brain: $0.brain, world: world(for: $0))
         }
         companions.step(dt: dt, members: members)
+    }
+
+    /* ---------------------------------------------------------------- 看鼠标 / 作息 */
+
+    private func stepAttention() {
+        let now = CACurrentMediaTime()
+        let dt = attentionAt == 0 ? 0 : min(now - attentionAt, 0.5)
+        attentionAt = now
+        guard !frozen else { return }
+        let cal = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        let idle = UserActivity.idleSeconds()
+        lastIdle = idle
+        let input = Attention.Input(
+            // 进程间调用：只在快要睡着时才查
+            idle: idle, mouse: UserActivity.mouse(),
+            screenKeptAwake: config.restWhenIdle && (idle ?? 0) >= tuning.restSleep ? UserActivity.screenKeptAwake() : nil, hour: Double(cal.hour ?? 12) + Double(cal.minute ?? 0) / 60,
+            watchMouse: config.watchMouse, restWhenIdle: config.restWhenIdle
+        )
+        let shown = pets.filter { $0.info != nil && !$0.hidden }
+        let before = attention.level
+        let greeter = attention.step(dt: dt, input: input, members: shown.map { Attention.Member(id: $0.config.id, brain: $0.brain) }, tuning: tuning)
+        if attention.level != before {
+            Log.info("作息：\(before.rawValue) → \(attention.level.rawValue)（闲置 \(Int(idle ?? 0)) 秒\(input.screenKeptAwake == true ? "，有程序不让屏幕熄灭" : "")）")
+        }
+        if let id = greeter, let pet = shown.first(where: { $0.config.id == id }) { pet.greet() }
     }
 
     private func teamName(_ raw: String?, _ c: AppConfig) -> String {
@@ -646,6 +675,9 @@ final class PetManager {
             "pid": Int(getpid()),
             "memoryMB": memoryReport(),
             "frozen": frozen,
+            "idleSeconds": lastIdle ?? -1,
+            "restLevel": attention.level.rawValue,
+            "screenKeptAwake": UserActivity.screenKeptAwake() ?? NSNull(),
             "mouse": ["x": Double(NSEvent.mouseLocation.x), "y": Double(NSEvent.mouseLocation.y)],
             "userHidden": userHidden,
             "loginItem": LoginItem.state.detail,

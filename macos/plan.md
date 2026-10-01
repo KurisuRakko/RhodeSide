@@ -20,6 +20,8 @@ P0–P5 已全部实现并部署到 Rakko 的 Mac，用法见 [README.md](README
 - **主窗口**（原控制面板 + 设置，2026-09-30 合并）：一个窗口 + 侧栏（桌宠 / 模型库 / 设置），系统设置式分组；换模型 / 时装 / 形态走桌宠页里的整页选模型界面（带预览）。页面是前端，随热更新。
 - **套组**（2026-09-30）：存一组桌宠一键召出（替换全部），同组联动（结伴走、丢开了互相找、点一只其余的反应）；联动逻辑在 `PetCore/Companions.swift`，Brain 只加了 `go / face / react / leash / events` 几个接口。用法见 README。
 - **叠叠乐**（2026-09-30）：拖到别人头上就叠上去，上面的不走、被下面的带着走；头顶是 `PlatformKind.pet`（`PetCore/Stacking.swift`），复用站窗口的跟随逻辑。
+- **看鼠标 + 作息**（2026-10-01）：鼠标靠近时转过来看；键鼠闲置久了坐下、睡觉，一动就醒；深夜更容易睡。决定逻辑在 `PetCore/Attention.swift`，
+  Brain 只加了 `setRest / glance / night`；平台读数（闲置秒数、鼠标坐标）压在 `Rhodeside/UserActivity.swift`，Win / Linux 的取法见根 README。
 - **行为参数**：状态时长、各动作概率、跳窗概率、悬停透明度放在前端的 `rhodeside-tuning.json`，随前端热更新；状态机本身仍在 Swift。
 
 资源占用（1 只桌宠，footprint）：App 25 MB；每只桌宠的 WebContent 进程 35–65 MB；整个 App 共用的 WebKit GPU 进程约 340 MB（其中 300 MB 为显存映射，稳定不增长）。上限 8 只。

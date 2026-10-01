@@ -21,6 +21,10 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var teams: [Team]
     /// 界面语言："system"（跟随系统）/ "zh-Hans" / "zh-Hant" / "en"，见 `UILanguage`
     public var language: String
+    /// 鼠标靠近时转过来看（`Attention`）
+    public var watchMouse: Bool
+    /// 跟着电脑作息：键鼠闲置久了坐下、睡觉，一动就醒（`Attention`）
+    public var restWhenIdle: Bool
 
     /// 默认模型（不再打进 App：登录后从服务器下载）
     public static let builtinModel = "荒芜拉普兰德"
@@ -43,7 +47,9 @@ public struct AppConfig: Codable, Equatable, Sendable {
         onboarded: Bool = false,
         voice: VoiceConfig = VoiceConfig(),
         teams: [Team] = [],
-        language: String = UILanguage.system
+        language: String = UILanguage.system,
+        watchMouse: Bool = true,
+        restWhenIdle: Bool = true
     ) {
         self.version = version
         self.pets = pets
@@ -56,6 +62,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.voice = voice
         self.teams = teams
         self.language = language
+        self.watchMouse = watchMouse
+        self.restWhenIdle = restWhenIdle
     }
 
     public init(from decoder: Decoder) throws {
@@ -74,6 +82,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         // 手改坏了套组不连累整份配置（桌宠还在），套组先当没有
         teams = (try? c.decodeIfPresent([Team].self, forKey: .teams)) ?? d.teams
         language = (try? c.decodeIfPresent(String.self, forKey: .language)) ?? d.language
+        watchMouse = (try? c.decodeIfPresent(Bool.self, forKey: .watchMouse)) ?? d.watchMouse
+        restWhenIdle = (try? c.decodeIfPresent(Bool.self, forKey: .restWhenIdle)) ?? d.restWhenIdle
     }
 
     public enum LoadResult: Equatable, Sendable {
@@ -311,6 +321,15 @@ public struct Tuning: Codable, Equatable, Sendable {
     public var edgeJumpChance: Double
     /// 悬停透明时的不透明度（再乘以桌宠自己的不透明度）
     public var hoverAlpha: Double
+    /// 键鼠闲置多少秒后坐下 / 睡着（`Attention`；睡着还要没在放视频）
+    public var restSit: Double
+    public var restSleep: Double
+    /// 鼠标离身体中心多远以内会转过来看（身高的倍数）
+    public var lookRadius: Double
+    /// 深夜的小时范围 [起, 止)，本地时间，可以跨零点（[23, 6]）
+    public var nightHours: [Double]
+    /// 深夜里自由活动时睡觉概率乘几倍
+    public var nightSleepBoost: Double
 
     public init() {
         idle = [2.5, 6]
@@ -322,6 +341,11 @@ public struct Tuning: Codable, Equatable, Sendable {
         sleepChance = 0.1
         edgeJumpChance = 0.2
         hoverAlpha = 0.25
+        restSit = 60
+        restSleep = 180
+        lookRadius = 2.5
+        nightHours = [0, 6]
+        nightSleepBoost = 3
     }
 
     public init(from decoder: Decoder) throws {
@@ -344,6 +368,25 @@ public struct Tuning: Codable, Equatable, Sendable {
         sleepChance = unit(.sleepChance, d.sleepChance)
         edgeJumpChance = unit(.edgeJumpChance, d.edgeJumpChance)
         hoverAlpha = unit(.hoverAlpha, d.hoverAlpha)
+        func positive(_ k: CodingKeys, _ def: Double) -> Double {
+            guard let v = try? c.decodeIfPresent(Double.self, forKey: k), v.isFinite, v > 0 else { return def }
+            return v
+        }
+        restSit = positive(.restSit, d.restSit)
+        restSleep = max(positive(.restSleep, d.restSleep), restSit)
+        lookRadius = positive(.lookRadius, d.lookRadius)
+        nightSleepBoost = positive(.nightSleepBoost, d.nightSleepBoost)
+        if let v = try? c.decodeIfPresent([Double].self, forKey: .nightHours), v.count == 2, v.allSatisfy({ $0.isFinite && $0 >= 0 && $0 <= 24 }) {
+            nightHours = v
+        } else {
+            nightHours = d.nightHours
+        }
+    }
+
+    /// 本地小时（0…24 的小数）落在深夜范围里
+    public func isNight(hour h: Double) -> Bool {
+        let a = nightHours[0], b = nightHours[1]
+        return a <= b ? (h >= a && h < b) : (h >= a || h < b)
     }
 
     public static func load(from url: URL) -> Tuning {

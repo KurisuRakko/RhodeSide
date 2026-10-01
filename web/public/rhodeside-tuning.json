@@ -7,5 +7,10 @@
   "sitChance": 0.15,
   "sleepChance": 0.1,
   "edgeJumpChance": 0.2,
-  "hoverAlpha": 0.25
+  "hoverAlpha": 0.25,
+  "restSit": 60,
+  "restSleep": 180,
+  "lookRadius": 2.5,
+  "nightHours": [0, 6],
+  "nightSleepBoost": 3
 }
