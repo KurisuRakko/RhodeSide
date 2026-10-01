@@ -259,7 +259,7 @@ async function fakeState(): Promise<NativeState> {
       language: 'system',
       watchMouse: true,
       restWhenIdle: true,
-      hopOnWindows: false,
+      hopOnWindows: true,
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],

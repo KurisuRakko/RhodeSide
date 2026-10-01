@@ -52,7 +52,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         language: String = UILanguage.system,
         watchMouse: Bool = true,
         restWhenIdle: Bool = true,
-        hopOnWindows: Bool = false
+        hopOnWindows: Bool = true
     ) {
         self.version = version
         self.pets = pets

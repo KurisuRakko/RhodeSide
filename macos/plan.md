@@ -22,7 +22,7 @@ P0–P5 已全部实现并部署到 Rakko 的 Mac，用法见 [README.md](README
 - **叠叠乐**（2026-09-30）：拖到别人头上就叠上去，上面的不走、被下面的带着走；头顶是 `PlatformKind.pet`（`PetCore/Stacking.swift`），复用站窗口的跟随逻辑。
 - **看鼠标 + 作息**（2026-10-01）：鼠标靠近时转过来看；键鼠闲置久了坐下、睡觉，一动就醒；深夜更容易睡。决定逻辑在 `PetCore/Attention.swift`，
   Brain 只加了 `setRest / glance / night`；平台读数（闲置秒数、鼠标坐标）压在 `Rhodeside/UserActivity.swift`，Win / Linux 的取法见根 README。
-- **窗口撞到时跳上去**（2026-10-01，默认关）：拖动 / 缩放窗口压到小人时弹到窗口顶上；判定在 `PetCore/WindowHop.swift`，Brain 只加了 `hop(to:)`，
+- **窗口撞到时跳上去**（2026-10-01，默认开）：拖动 / 缩放窗口压到小人时弹到窗口顶上；判定在 `PetCore/WindowHop.swift`，Brain 只加了 `hop(to:)`，
   原生层在 `PetManager.applyScan` 里拿前后两次扫描比。Windows 版（`desktop/core`）合并后要同步移植。
 - **同层 / 焦点 / 飞行带子**（2026-10-01，`tasks/009-window-layer.plan.md`）：站在窗口上和它同层、被盖住走到露出来的地方；不在焦点的窗口上只在露出来那段里溜达；
   空中一次拉高窗口不再每帧挪。平台多了 `covered`，`World` 多了 `focus`；协议 3 → 4。
