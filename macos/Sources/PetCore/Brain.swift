@@ -110,13 +110,32 @@ public struct Leash: Equatable, Sendable {
     }
 }
 
+/// 现在哪个窗口在焦点（最前面那个应用最靠前的窗口）
+public enum Focus: Equatable, Sendable {
+    /// 不知道（单元测试、还没扫描）：当所有窗口都在焦点，行为照旧
+    case unknown
+    case window(UInt32)
+    /// 最前面的应用一个窗口都没有（点了桌面）
+    case none
+}
+
 public struct World: Sendable {
     public var platforms: [Platform]
     public var screens: [ScreenInfo]
+    public var focus: Focus
 
-    public init(platforms: [Platform] = [], screens: [ScreenInfo] = []) {
+    public init(platforms: [Platform] = [], screens: [ScreenInfo] = [], focus: Focus = .unknown) {
         self.platforms = platforms
         self.screens = screens
+        self.focus = focus
+    }
+
+    public func isFocused(window id: UInt32) -> Bool {
+        switch focus {
+        case .unknown: return true
+        case .window(let f): return f == id
+        case .none: return false
+        }
     }
 
     public func screen(containing p: CGPoint) -> ScreenInfo? {
@@ -171,6 +190,8 @@ public final class Brain {
     public var leash: Leash?
     /// 这段路走到了以后面朝哪（套组里走到同伴旁边时面朝它）
     private var arriveFace: Double?
+    /// 这段路是脚下被盖住了、往同一个窗口露出来的地方走（不在焦点的窗口上也照走）
+    private var toVisible = false
     /// 这次下落是被人扔的（落地时发 `.dropped`）
     private var thrown = false
     /// 这次下落能落到别的小人头上：只有被人扔的、重启后放回别人头上的才行
@@ -207,6 +228,15 @@ public final class Brain {
 
     /// 站在平台上（能做动作、能走）
     public var isStanding: Bool { support != .none && behavior != .held && behavior != .fall }
+
+    /// 这次飞行的最高点（脚的高度）：原生层按它一次把窗口拉高到盖住整段弹道，飞行中不再每帧挪窗口
+    public var apexY: Double {
+        let vy = max(Double(velocity.dy), 0)
+        return Double(foot.y) + vy * vy / (2 * Self.gravity)
+    }
+
+    /// 当前的竖直速度（pt/s）：只在下落时非 0
+    public var visualVY: Double { behavior == .fall ? Double(velocity.dy) : 0 }
 
     /// 当前的水平速度（pt/s），给渲染端在两次位置更新之间外推用
     public var visualVX: Double {
@@ -333,7 +363,7 @@ public final class Brain {
     @discardableResult
     public func go(to p: CGPoint, face: Double? = nil, world: World) -> Bool {
         guard isStanding, [.idle, .walk, .sit].contains(behavior), !battle, activity != .stay, !isOnPet, restLevel == .awake, params.roles.move != nil,
-              let here = platform(world) else { return false }
+              let here = platform(world), !here.covered, !unfocused(here, world) else { return false }
         return approach(p, face: face, here, world)
     }
 
@@ -407,6 +437,34 @@ public final class Brain {
         guard night else { return (t.walkChance, t.sitChance, t.sleepChance) }
         let z = min(t.sleepChance * t.nightSleepBoost, t.sleepChance + t.walkChance)
         return (t.walkChance - (z - t.sleepChance), t.sitChance, z)
+    }
+
+    /// 站在不在焦点的窗口上：只在脚下露出来的这段里溜达，不走出去、不跳窗边、套组不拉它
+    private func unfocused(_ p: Platform, _ world: World) -> Bool {
+        if case .window(let id) = p.kind { return !world.isFocused(window: id) }
+        return false
+    }
+
+    /// 脚下被前面的窗口盖住了：往同一个窗口顶边上最近的露出来的地方走（身子整个露出来），中间被盖住的段照样走。
+    /// 醒着、有走路动画、不是战斗形态、不是「原地停留」、不是手动 / 作息让它一直坐着睡着的才走；整个顶边都被盖住就待着
+    private func seekVisible(_ p: Platform, _ world: World) -> Bool {
+        guard p.covered, !toVisible, params.roles.move != nil, !battle, activity != .stay, restLevel == .awake,
+              behavior == .walk || ([.idle, .sit, .sleep].contains(behavior) && timer.isFinite) else { return false }
+        // 和 p 首尾相连的同一个窗口的顶边（露出来的、被盖住的都算）
+        let same = world.platforms.filter { $0.kind == p.kind && abs($0.segment.y - p.segment.y) < 0.5 }.sorted { $0.segment.minX < $1.segment.minX }
+        guard let i = same.firstIndex(of: p) else { return false }
+        var lo = i, hi = i
+        while lo > 0, same[lo - 1].segment.maxX >= same[lo].segment.minX - 2 { lo -= 1 }
+        while hi < same.count - 1, same[hi + 1].segment.minX <= same[hi].segment.maxX + 2 { hi += 1 }
+        let x = Double(foot.x)
+        let spots = same[lo...hi].filter { !$0.covered }.map { $0.segment.clamp(x: x, half: params.halfWidth) }
+        guard let t = spots.min(by: { abs($0 - x) < abs($1 - x) }), abs(t - x) > 1 else { return false }
+        targetX = t
+        dir = t >= x ? 1 : -1
+        arriveFace = nil
+        enter(.walk)
+        toVisible = true
+        return true
     }
 
     /// 脚下的平台（找不到就 nil）
@@ -571,6 +629,7 @@ public final class Brain {
         anchor = p.anchorX
         foot = CGPoint(x: x, y: p.segment.y)
         support = .on(kind, dx: x - p.anchorX)
+        if seekVisible(p, world) { return }
 
         switch behavior {
         case .walk:
@@ -590,9 +649,9 @@ public final class Brain {
         let roles = params.roles
         let t = chances()
         if battle { return enter(.idle) }
-        // 叠在别人头上：不回集合点，也不走（按原地停留来坐、睡、待机）
-        let stacked = isOnPet
-        if let l = leash, !stacked, activity != .stay, roles.move != nil {
+        // 叠在别人头上、脚下被盖住了（又没露出来的地方可去）：不回集合点，也不走（按原地停留来坐、睡、待机）
+        let stacked = isOnPet || p.covered
+        if let l = leash, !stacked, !unfocused(p, world), activity != .stay, roles.move != nil {
             let below = isOnWindow && l.y < foot.y - Self.stepTolerance
             let side: Double = foot.x >= l.x ? 1 : -1
             if below || abs(foot.x - l.x) > l.radius, approach(CGPoint(x: l.x + side * l.gap, y: l.y), face: l.x, p, world) { return }
@@ -615,13 +674,15 @@ public final class Brain {
     }
 
     private func startWalk(_ p: Platform, _ world: World) {
-        let (lo0, hi0) = span(of: p, world)
+        // 不在焦点的窗口上只在脚下这段里走
+        let away = unfocused(p, world)
+        let (lo0, hi0) = away ? (p.segment.minX, p.segment.maxX) : span(of: p, world)
         let half = params.halfWidth
         let lo = lo0 + half
         let hi = hi0 - half
         var target: Double
         // 套组跟随者不随机跳窗（跳下去就爬不回集合点身边了）
-        if case .window = p.kind, leash == nil, random() < tuning.edgeJumpChance {
+        if case .window = p.kind, !away, leash == nil, random() < tuning.edgeJumpChance {
             target = random() < 0.5 ? lo0 - 2 : hi0 + 2 // 走出边缘，掉下去
         } else {
             // 套组跟随者：只在集合点附近溜达
@@ -647,10 +708,16 @@ public final class Brain {
         let stepLen = params.walkSpeed * dt
         let arrived = abs(d) <= stepLen
         let nx = arrived ? targetX : foot.x + (d > 0 ? stepLen : -stepLen)
+        // 不在焦点的窗口上（失焦前就在走的也算）：走到这段露出来的顶边的头（身子不伸出去）就停下，不掉下去、不走到别的窗口上
+        if !toVisible, unfocused(p, world) {
+            let lo = p.segment.minX + params.halfWidth, hi = p.segment.maxX - params.halfWidth
+            let out = lo <= hi ? (d > 0 ? nx > hi : nx < lo) : !p.segment.contains(x: nx, tolerance: 0)
+            if out { return enter(.idle) }
+        }
         if p.segment.contains(x: nx, tolerance: 0) {
             foot.x = nx
             support = .on(p.kind, dx: nx - p.anchorX)
-        } else if let q = neighbor(of: p, x: nx, world) {
+        } else if let q = neighbor(of: p, x: nx, world), !toVisible || q.kind == p.kind {
             // 走到相邻、差不多高的平台上（另一块屏幕的地面、并排的窗口）
             foot = CGPoint(x: nx, y: q.segment.y)
             support = .on(q.kind, dx: nx - q.anchorX)
@@ -691,7 +758,7 @@ public final class Brain {
         if ny <= old.y {
             let rise = params.height * 0.6
             let hit = world.platforms
-                .filter { mayStack || !$0.kind.isPet }
+                .filter { (mayStack || !$0.kind.isPet) && !$0.covered }
                 .filter { $0.segment.y <= old.y + ($0.kind.isPet ? rise : 0.5) && $0.segment.y >= ny && $0.segment.contains(x: nx, tolerance: 0) }
                 .max { $0.segment.y < $1.segment.y }
             if let p = hit { return land(on: p, x: nx) }
@@ -740,7 +807,7 @@ public final class Brain {
         // 头顶不和别的平台相连：走不上去，也走不下来
         guard !p.kind.isPet else { return nil }
         return world.platforms
-            .filter { $0 != p && !$0.kind.isPet && abs($0.segment.y - p.segment.y) <= Self.stepTolerance && $0.segment.contains(x: x, tolerance: 1) }
+            .filter { $0 != p && !$0.kind.isPet && (!$0.covered || $0.kind == p.kind) && abs($0.segment.y - p.segment.y) <= Self.stepTolerance && $0.segment.contains(x: x, tolerance: 1) }
             .max { $0.segment.y < $1.segment.y }
     }
 
@@ -752,14 +819,14 @@ public final class Brain {
         let tol = Self.stepTolerance
         for _ in 0..<8 {
             guard let q = world.platforms.first(where: {
-                !$0.kind.isPet && abs($0.segment.y - hiY) <= tol && $0.segment.minX <= hi + 2 && $0.segment.maxX > hi + 1
+                !$0.kind.isPet && !$0.covered && abs($0.segment.y - hiY) <= tol && $0.segment.minX <= hi + 2 && $0.segment.maxX > hi + 1
             }) else { break }
             hi = q.segment.maxX
             hiY = q.segment.y
         }
         for _ in 0..<8 {
             guard let q = world.platforms.first(where: {
-                !$0.kind.isPet && abs($0.segment.y - loY) <= tol && $0.segment.maxX >= lo - 2 && $0.segment.minX < lo - 1
+                !$0.kind.isPet && !$0.covered && abs($0.segment.y - loY) <= tol && $0.segment.maxX >= lo - 2 && $0.segment.minX < lo - 1
             }) else { break }
             lo = q.segment.minX
             loY = q.segment.y
@@ -772,6 +839,7 @@ public final class Brain {
     private func enter(_ b: Behavior) {
         behavior = b
         steps = []
+        toVisible = false
         restOwned = false // 作息让的那次由 setRest 在 enter 之后重新标上
         switch b {
         case .idle: timer = activity == .walk ? rand(tuning.walkPause[0], tuning.walkPause[1]) : rand(tuning.idle[0], tuning.idle[1])

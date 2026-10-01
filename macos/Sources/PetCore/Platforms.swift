@@ -18,11 +18,15 @@ public struct Platform: Equatable, Sendable {
     public var segment: Segment
     /// 小人跟着平台走时的参照点：窗口的左边缘（地面恒为 0）。站在窗口上的小人记的是「脚 − anchorX」。
     public var anchorX: Double
+    /// 窗口顶边被前面的窗口挡住的那段：只有本来就站在这个窗口上的小人能站、能走（小人和窗口同层，被盖在下面），
+    /// 别的小人落不上来、也不会从别处走进来
+    public var covered: Bool
 
-    public init(kind: PlatformKind, segment: Segment, anchorX: Double) {
+    public init(kind: PlatformKind, segment: Segment, anchorX: Double, covered: Bool = false) {
         self.kind = kind
         self.segment = segment
         self.anchorX = anchorX
+        self.covered = covered
     }
 }
 
@@ -51,12 +55,21 @@ public enum Platforms {
                 if hi - lo >= minWidth { pieces.append((lo, hi)) }
             }
             // 2. 减掉前面那些「竖直方向真把这条顶边盖住」的窗口；前面的窗口整个在顶边下面就不算挡
+            var open = pieces
             for f in windows[..<i] where Double(f.frame.minY) <= y && Double(f.frame.maxY) > y + 2 {
-                pieces = subtract(pieces, Double(f.frame.minX), Double(f.frame.maxX))
-                if pieces.isEmpty { break }
+                open = subtract(open, Double(f.frame.minX), Double(f.frame.maxX))
+                if open.isEmpty { break }
             }
-            for (lo, hi) in pieces where hi - lo >= minWidth {
-                out.append(Platform(kind: .window(id: w.id), segment: Segment(y: y, minX: lo, maxX: hi), anchorX: Double(w.frame.minX)))
+            // 3. 挡住的那几段也留着，标成 covered（太窄的露出来的段并进挡住的里，免得脚下出现站不住的缝）
+            let visible = open.filter { $0.1 - $0.0 >= minWidth }
+            var hidden = pieces
+            for (lo, hi) in visible { hidden = subtract(hidden, lo, hi) }
+            let anchor = Double(w.frame.minX)
+            for (lo, hi) in visible {
+                out.append(Platform(kind: .window(id: w.id), segment: Segment(y: y, minX: lo, maxX: hi), anchorX: anchor))
+            }
+            for (lo, hi) in hidden where hi - lo > 0.5 {
+                out.append(Platform(kind: .window(id: w.id), segment: Segment(y: y, minX: lo, maxX: hi), anchorX: anchor, covered: true))
             }
         }
         return out

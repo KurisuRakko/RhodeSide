@@ -16,6 +16,9 @@ final class PetManager {
     private(set) var windows: [WindowInfo] = []
     private(set) var platforms: [Platform] = []
     private(set) var fullscreen: Set<UInt32> = []
+    /// 焦点窗口（不在焦点的窗口上小人只在脚下那段里溜达）和第 0 层窗口的前后顺序（检查小人有没有排在脚下窗口正上方）
+    private(set) var focus: Focus = .unknown
+    private var zOrder: [UInt32] = []
     private var scanFrames: [UInt32: CGRect] = [:]
     /// 窗口撞到小人（`hopOnWindows`）：最近有窗口在动，这之前每跳都扫，免得快速拖过去时在两次扫描之间整个穿过小人
     private var windowsMovingUntil: CFTimeInterval = 0
@@ -125,6 +128,10 @@ final class PetManager {
             // 切桌面空间的一瞬间窗口列表是乱的：暂停物理半秒，免得小人误以为脚下的窗口没了
             self?.frozenUntil = CACurrentMediaTime() + 0.5
         })
+        observers.append(ws.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+            // 切了应用：焦点和窗口前后顺序都变了，马上扫一次（站在窗口上的小人少被盖一会儿）
+            self?.rescan()
+        })
         observers.append(ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             self?.rescan()
         })
@@ -156,7 +163,8 @@ final class PetManager {
     /// 屏幕信息在主线程读（NSScreen 不保证线程安全），窗口列表和平台在后台算，算完回主线程换上
     func rescan() {
         primaryHeight = NSScreen.screens.first?.frame.height ?? 0
-        scanner.scan(screens: NSScreen.screens.map(\.info), primaryHeight: primaryHeight, config: config) { [weak self] r in
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        scanner.scan(screens: NSScreen.screens.map(\.info), primaryHeight: primaryHeight, frontPID: front, config: config) { [weak self] r in
             self?.applyScan(r)
         }
     }
@@ -168,7 +176,33 @@ final class PetManager {
         scanFrames = r.frames
         platforms = r.platforms
         fullscreen = r.fullscreen
+        focus = r.focus
+        zOrder = r.order
         for pet in pets { pet.setHidden(shouldHide(pet)) }
+        fixLayers()
+    }
+
+    /// 站在窗口上的小人（一摞看最下面那只）该贴着哪个窗口；在地上、在空中、被拎着 = nil（浮在所有窗口上面）
+    func layerWindow(for pet: Pet) -> UInt32? {
+        var base = pet
+        for _ in 0..<16 {
+            guard let id = base.brain.below, let lower = pets.first(where: { $0.config.id == id }) else { break }
+            base = lower
+        }
+        guard base.brain.isStanding, case .some(.window(let id)) = base.brain.support.kind else { return nil }
+        return id
+    }
+
+    /// 贴着窗口 A 的小人要排在「A 之上、A 前面那个别人的窗口之下」：点了 A（A 升到最前把小人盖住）、别的窗口插进来时重排。
+    /// 顺序是后台扫描那一刻的，可能已经过时：多排一次也没坏处
+    private func fixLayers() {
+        let own = Set(pets.map { UInt32(truncatingIfNeeded: $0.window.panel.windowNumber) })
+        let index = Dictionary(zOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        for pet in pets where !pet.hidden && pet.brain.below == nil {
+            guard let id = pet.layer, let a = index[id], let me = index[UInt32(truncatingIfNeeded: pet.window.panel.windowNumber)] else { continue }
+            let ok = me < a && !zOrder[(me + 1)..<a].contains { !own.contains($0) }
+            if !ok { pet.applyLayer() }
+        }
     }
 
     /// 窗口撞到小人：和上一次扫描比，挪动 / 缩放后新压到小人（连同叠在它头上的那摞）身上的窗口，小人弹到它顶上
@@ -230,15 +264,24 @@ final class PetManager {
             }
         }
         ps += Stacking.heads(for: pet.config.id, pets: pets.map(\.head), screens: screens) // 叠叠乐：别的小人的头顶
-        return World(platforms: ps, screens: screens)
+        return World(platforms: ps, screens: screens, focus: focus)
     }
 
     /// 点所在的屏幕；不在任何屏幕里就取横向最近的，再不行用主屏
     func screenFrame(near p: CGPoint) -> CGRect {
+        screen(near: p)?.frame ?? .zero
+    }
+
+    /// 同上，取可用区域（下沿是地面）
+    func visibleFrame(near p: CGPoint) -> CGRect {
+        screen(near: p)?.visibleFrame ?? .zero
+    }
+
+    private func screen(near p: CGPoint) -> ScreenInfo? {
         let list = screens.isEmpty ? NSScreen.screens.map(\.info) : screens
-        if let s = list.first(where: { $0.frame.contains(p) }) { return s.frame }
+        if let s = list.first(where: { $0.frame.contains(p) }) { return s }
         let dist = { (r: CGRect) -> CGFloat in max(r.minX - p.x, 0, p.x - r.maxX) + max(r.minY - p.y, 0, p.y - r.maxY) }
-        return list.min { dist($0.frame) < dist($1.frame) }?.frame ?? NSScreen.screens.first?.frame ?? .zero
+        return list.min { dist($0.frame) < dist($1.frame) } ?? NSScreen.screens.first?.info
     }
 
     private func shouldHide(_ pet: Pet) -> Bool {
@@ -722,8 +765,9 @@ final class PetManager {
             "loginItem": LoginItem.state.detail,
             "screens": screens.map { ["id": Int($0.id), "frame": rectDict($0.frame), "visibleFrame": rectDict($0.visibleFrame)] as [String: Any] },
             "fullscreen": fullscreen.map { Int($0) },
+            "focus": String(describing: focus),
             "windows": windows.map { ["id": Int($0.id), "owner": $0.owner, "frame": rectDict($0.frame)] as [String: Any] },
-            "platforms": platforms.map { ["kind": String(describing: $0.kind), "y": $0.segment.y, "minX": $0.segment.minX, "maxX": $0.segment.maxX] as [String: Any] },
+            "platforms": platforms.map { ["kind": String(describing: $0.kind), "y": $0.segment.y, "minX": $0.segment.minX, "maxX": $0.segment.maxX, "covered": $0.covered] as [String: Any] },
             "pets": pets.map(\.state),
             "config": jsonObject(config),
         ]

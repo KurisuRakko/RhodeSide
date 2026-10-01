@@ -30,7 +30,7 @@ public enum WindowHop {
     /// 跳到这个窗口顶边上哪：离 x 最近的那段可站的顶边，按半身宽夹进去；没有可站的（最大化、贴着菜单栏、顶边被挡住）就 nil，不跳
     public static func target(window id: UInt32, platforms: [Platform], x: Double, half: Double) -> CGPoint? {
         let dist = { (s: Segment) in max(s.minX - x, 0, x - s.maxX) }
-        guard let p = platforms.filter({ $0.kind == .window(id: id) }).min(by: { dist($0.segment) < dist($1.segment) }) else { return nil }
+        guard let p = platforms.filter({ $0.kind == .window(id: id) && !$0.covered }).min(by: { dist($0.segment) < dist($1.segment) }) else { return nil }
         return CGPoint(x: p.segment.clamp(x: x, half: half), y: p.segment.y)
     }
 }

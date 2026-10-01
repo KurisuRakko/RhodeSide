@@ -2,7 +2,8 @@
  * Rhodeside 桌宠渲染页：原生层（Swift）管位置和行为，这一页只按命令画一只小人。
  *
  * 画布铺满整个透明窗口。窗口是横跨所在屏幕的一条带子，原生层每帧发 `pos`（脚在窗口里的横坐标 + 速度），
- * 这里在两次更新之间按速度外推；还没收到 `pos`（或窗口宽度对不上）时画在正中间。脚底高度固定是 layout.footY。
+ * 这里在两次更新之间按速度外推；还没收到 `pos`（或窗口宽度对不上）时画在正中间。
+ * 脚底高度平时是 layout.footY；在空中时窗口是盖住整段弹道的高带子，脚底高度跟着 `pos` 的 y / vy 走（协议 4）。
  * 尺寸单位一律是 CSS px（= macOS 的 pt），原点在画布左下角、y 向上，和 AppKit 的窗口坐标一致。
  *
  * 消息收发走 native/transport.ts（原生 → 页面 `window.rhodeside.receive(msg)`，页面 → 原生 `post(msg)`）。
@@ -44,7 +45,7 @@ type Incoming =
   | { type: 'hit'; id: number; x: number; y: number }
   | { type: 'fps'; value: number }
   | { type: 'pause'; paused: boolean }
-  | { type: 'pos'; x: number; vx: number; w: number }
+  | { type: 'pos'; x: number; vx: number; w: number; y?: number; vy?: number; h?: number }
   | { type: 'touch' }
   | ({ type: 'voice' } & VoiceSettings)
 
@@ -149,6 +150,10 @@ let sentBounds = ''
 let posX = 0
 let posVX = 0
 let posW = 0
+/** 脚底高度（窗口内，y 向上）、竖直速度、窗口高度；老 App 不发（posH = 0）时用 layout.footY */
+let posY = 0
+let posVY = 0
+let posH = 0
 let posAt = 0
 let sizeKey = ''
 /** 等下一帧渲染完再回答的点击判定 / 快照 */
@@ -330,15 +335,17 @@ function frame(now: number) {
   skeleton.scaleY = scale
   const shade = 1 - TURN_SHADE * (1 - Math.abs(cos))
   skeleton.color.set(shade, shade, shade, 1)
-  const placed = posW > 0 && Math.abs(posW - cssW) < 0.5
+  const placed = posW > 0 && Math.abs(posW - cssW) < 0.5 && (posH === 0 || Math.abs(posH - cssH) < 1)
   // 在 App 里：还没收到对得上当前窗口宽度的位置就先不画，免得在带子正中间闪一帧
   if (native && !placed) {
     flushReads()
     return
   }
   // 原生层和这里的帧不同步：用最后一次位置 + 速度外推（最多外推 20ms，停下时不会冲过头太多）
-  skeleton.x = placed ? posX + posVX * Math.min(Math.max(now - posAt, 0) / 1000, 0.02) : cssW / 2
-  skeleton.y = layout.footY - model.rest.y * scale
+  const ahead = Math.min(Math.max(now - posAt, 0) / 1000, 0.02)
+  skeleton.x = placed ? posX + posVX * ahead : cssW / 2
+  const footY = placed && posH > 0 ? posY + posVY * ahead : layout.footY
+  skeleton.y = footY - model.rest.y * scale
   skeleton.updateWorldTransform()
   renderer.begin()
   if (turnT < 1) applyTurn(skeleton.x, skeleton.y + model.rest.y * scale, Math.abs(cos), Math.sin(angle) * side)
@@ -355,10 +362,10 @@ function frame(now: number) {
     lastBounds = now
     const b = boundsOf(skeleton, offset, size, temp)
     // 包围盒没变（待机、坐着）就不发，省掉无用的跨进程消息
-    const key = b ? `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}|${cssW}|${placed}` : ''
+    const key = b ? `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}|${cssW}x${cssH}|${placed}` : ''
     if (b && key !== sentBounds) {
       sentBounds = key
-      post({ type: 'bounds', x: b.x, y: b.y, w: b.w, h: b.h, frameW: cssW, placed, sx: skeleton.x })
+      post({ type: 'bounds', x: b.x, y: b.y, w: b.w, h: b.h, frameW: cssW, placed, sx: skeleton.x, sy: footY })
     }
   }
 }
@@ -479,6 +486,9 @@ function receive(msg: Incoming) {
       posX = msg.x
       posVX = Number.isFinite(msg.vx) ? msg.vx : 0
       posW = msg.w
+      posY = Number.isFinite(msg.y) ? msg.y! : 0
+      posVY = Number.isFinite(msg.vy) ? msg.vy! : 0
+      posH = Number.isFinite(msg.h) ? msg.h! : 0
       posAt = performance.now()
       break
     case 'touch':

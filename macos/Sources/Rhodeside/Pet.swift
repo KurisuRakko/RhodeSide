@@ -36,12 +36,21 @@ final class Pet: NSObject {
     private var bounds: CGRect?
     /// 网页量包围盒那一帧小人的 x（窗口内坐标）：走路时按现在的位置平移包围盒，前缘不会点不到
     private var boundsX: CGFloat?
+    /// 同一帧小人脚底的高度（窗口内坐标）：飞行时窗口不动、小人在带子里上下，包围盒跟着平移
+    private var boundsY: CGFloat?
+    /// 飞行中的窗口（盖住整段弹道的高带子）；不在空中时 nil
+    private var flight: NSRect?
+    /// 现在贴着哪个窗口（和它同层、排在它正上方）；nil = 浮在所有窗口上面
+    private(set) var layer: UInt32?
     private var sentAnim = -1
     private var sentDir = 0
     /// 最近一次发给网页的脚底位置（窗口内横坐标）、速度、窗口宽度
     private var sentPosX: CGFloat = -1
     private var sentPosVX: Double = .nan
     private var sentPosW: CGFloat = 0
+    private var sentPosY: CGFloat = -1
+    private var sentPosVY: Double = .nan
+    private var sentPosH: CGFloat = 0
     private var faceSentAt: CFTimeInterval = 0
     /// 显示器睡了（页面暂停着）；醒来打招呼要等它亮
     private var screenAsleep = false
@@ -316,6 +325,7 @@ final class Pet: NSObject {
             brain.step(dt: dt, world: world)
         }
         syncWeb(now)
+        updateLayer()
         applyFrame()
         updateMouse(now)
         updateAlpha(dt)
@@ -331,6 +341,31 @@ final class Pet: NSObject {
                 manager.raiseStack(on: self)
             }
         }
+    }
+
+    /* ---------------------------------------------------------------- 层级 */
+
+    /// 站在窗口上就和那个窗口同层（排在它正上方，前面的窗口能盖住小人）；叠着的一摞看最下面那只。
+    /// 只在「该贴哪个窗口」变了时动一次；被别人打乱了由 PetManager 每次扫描检查、调 `applyLayer` 重排
+    private func updateLayer() {
+        let want = manager.layerWindow(for: self)
+        guard want != layer else { return }
+        layer = want
+        applyLayer()
+    }
+
+    /// 按 `layer` 设层级、排位置；藏着的只设层级（order 会把窗口显示出来）
+    func applyLayer() {
+        let panel = window.panel
+        let level: NSWindow.Level = layer == nil ? .floating : .normal
+        if panel.level != level { panel.level = level }
+        guard !hidden else { return }
+        if let id = brain.below, let lower = manager.pets.first(where: { $0.config.id == id }) {
+            panel.order(.above, relativeTo: lower.window.panel.windowNumber)
+        } else if let id = layer {
+            panel.order(.above, relativeTo: Int(id))
+        }
+        manager.raiseStack(on: self)
     }
 
     /// 给叠叠乐算头顶平台用
@@ -363,21 +398,47 @@ final class Pet: NSObject {
         guard let layout = info?.layout else { return }
         let screen = manager.screenFrame(near: brain.foot)
         let s = window.panel.backingScaleFactor > 0 ? window.panel.backingScaleFactor : 2
-        let y = ((brain.foot.y - layout.footY) * s).rounded() / s
-        let target = NSRect(x: screen.minX, y: y, width: screen.width, height: CGFloat(layout.h))
+        let px = { (v: CGFloat) in (v * s).rounded() / s }
+        let footY = CGFloat(layout.footY), h = CGFloat(layout.h)
+        let target: NSRect
+        if brain.behavior == .fall {
+            // 在空中：窗口一次拉高到盖住整段弹道（下沿是这块屏幕的地面，上沿是最高点 + 身高），飞行中不再每帧挪窗口
+            // （每次挪窗口都要等 WindowServer，它忙的时候主线程会卡几百毫秒）。脚出了带子才重设
+            let top = max(CGFloat(brain.apexY), brain.foot.y) - footY + h
+            if let f = flight, f.minX == screen.minX, f.width == screen.width, brain.foot.y - footY >= f.minY - 0.5, top <= f.maxY + 0.5 {
+                target = f
+            } else {
+                let ground = manager.visibleFrame(near: brain.foot).minY
+                let bottom = px(min(ground, brain.foot.y) - footY)
+                // 高度取整 pt：网页的 innerHeight 是整数，半点高的带子会让它一直认为「位置和窗口对不上」而不画
+                target = NSRect(x: screen.minX, y: bottom, width: screen.width, height: max((top + 8 - bottom).rounded(.up), h))
+                flight = target
+            }
+        } else {
+            flight = nil
+            target = NSRect(x: screen.minX, y: px(brain.foot.y - footY), width: screen.width, height: h)
+        }
         let cur = window.panel.frame
+        let t0 = CACurrentMediaTime()
         if cur.size != target.size || cur.minX != target.minX {
             window.panel.setFrame(target, display: true)
         } else if cur.minY != target.minY {
             window.panel.setFrameOrigin(target.origin)
         }
+        let spent = CACurrentMediaTime() - t0
+        if spent > 0.05 { Log.warn("[\(short)] 挪窗口卡了 \(Int(spent * 1000)) ms（\(brain.behavior.rawValue)\(flight != nil ? "，飞行带子" : "")）") }
         let x = brain.foot.x - target.minX
         let vx = brain.visualVX
-        if abs(x - sentPosX) > 0.01 || vx != sentPosVX || target.width != sentPosW {
+        let y = brain.foot.y - target.minY
+        let vy = brain.visualVY
+        if abs(x - sentPosX) > 0.01 || vx != sentPosVX || target.width != sentPosW || abs(y - sentPosY) > 0.01 || vy != sentPosVY || target.height != sentPosH {
             sentPosX = x
             sentPosVX = vx
             sentPosW = target.width
-            window.webView.send(["type": "pos", "x": x, "vx": vx, "w": target.width])
+            sentPosY = y
+            sentPosVY = vy
+            sentPosH = target.height
+            window.webView.send(["type": "pos", "x": x, "vx": vx, "w": target.width, "y": y, "vy": vy, "h": target.height])
         }
     }
 
@@ -390,7 +451,8 @@ final class Pet: NSObject {
     private var liveBounds: CGRect? {
         guard let b = bounds else { return nil }
         guard let sx = boundsX else { return b }
-        return b.offsetBy(dx: brain.foot.x - window.panel.frame.minX - sx, dy: 0)
+        let f = window.panel.frame
+        return b.offsetBy(dx: brain.foot.x - f.minX - sx, dy: boundsY.map { brain.foot.y - f.minY - $0 } ?? 0)
     }
 
     private func mouseNearPet() -> Bool {
@@ -479,7 +541,7 @@ final class Pet: NSObject {
         } else {
             applyFrame()
             window.panel.orderFrontRegardless()
-            manager.raiseStack(on: self)
+            applyLayer()
             lastTick = 0
         }
         window.webView.send(["type": "pause", "paused": hide])
@@ -542,6 +604,8 @@ final class Pet: NSObject {
             "dir": brain.dir,
             "foot": ["x": brain.foot.x, "y": brain.foot.y],
             "support": String(describing: brain.support),
+            "layer": layer.map { Int($0) } ?? NSNull(),
+            "flight": flight.map(rectDict) ?? NSNull(),
             "frame": rectDict(window.panel.frame),
             "bounds": bounds.map(rectDict) ?? NSNull(),
             "hidden": hidden,
@@ -602,6 +666,7 @@ extension Pet: WKScriptMessageHandler {
         case "bounds":
             bounds = CGRect(x: b.double("x") ?? 0, y: b.double("y") ?? 0, width: b.double("w") ?? 0, height: b.double("h") ?? 0)
             boundsX = b.double("sx").map { CGFloat($0) }
+            boundsY = b.double("sy").map { CGFloat($0) }
         case "animDone": if let n = b.string("name") { brain.animationFinished(n) }
         case "hit": handleHit(b)
         case "snapshot": saveSnapshot(b)

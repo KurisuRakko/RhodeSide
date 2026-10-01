@@ -10,13 +10,15 @@ final class BackgroundScanner {
         let platforms: [Platform]
         let fullscreen: Set<UInt32>
         let frames: [UInt32: CGRect]
+        let order: [UInt32]
+        let focus: Focus
     }
 
     private let queue = DispatchQueue(label: "rhodeside.scan", qos: .userInitiated)
     /// 只在主线程读写：上一轮没回来就跳过这一轮，不排队
     private var busy = false
 
-    func scan(screens: [ScreenInfo], primaryHeight: CGFloat, config: AppConfig, completion: @escaping (Result) -> Void) {
+    func scan(screens: [ScreenInfo], primaryHeight: CGFloat, frontPID: pid_t?, config: AppConfig, completion: @escaping (Result) -> Void) {
         guard !busy else { return }
         busy = true
         let pid = getpid()
@@ -24,13 +26,16 @@ final class BackgroundScanner {
         let walk = config.walkOnWindows
         let hide = config.hideInFullscreen
         queue.async {
-            let wins = WindowScanner.scan(ownPID: pid, ignored: ignored, primaryHeight: primaryHeight)
+            let scan = WindowScanner.scan(ownPID: pid, ignored: ignored, primaryHeight: primaryHeight, frontPID: frontPID)
+            let wins = scan.windows
             let result = Result(
                 screens: screens,
                 windows: wins,
                 platforms: Platforms.compute(screens: screens, windows: wins, walkOnWindows: walk),
                 fullscreen: hide ? Platforms.fullscreenScreens(screens: screens, windows: wins) : [],
-                frames: Dictionary(wins.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a })
+                frames: Dictionary(wins.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a }),
+                order: scan.order,
+                focus: scan.focus
             )
             DispatchQueue.main.async {
                 self.busy = false

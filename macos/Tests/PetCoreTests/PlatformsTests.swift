@@ -11,8 +11,14 @@ final class PlatformsTests: XCTestCase {
         WindowInfo(id: id, pid: 100, owner: "App", frame: CGRect(x: x, y: y, width: w, height: h))
     }
 
+    /// 露出来的顶边
     func segments(_ ps: [Platform], _ id: UInt32) -> [Segment] {
-        ps.filter { $0.kind == .window(id: id) }.map(\.segment)
+        ps.filter { $0.kind == .window(id: id) && !$0.covered }.map(\.segment)
+    }
+
+    /// 被前面的窗口挡住的顶边
+    func covered(_ ps: [Platform], _ id: UInt32) -> [Segment] {
+        ps.filter { $0.kind == .window(id: id) && $0.covered }.map(\.segment)
     }
 
     func testGroundOnly() {
@@ -30,7 +36,17 @@ final class PlatformsTests: XCTestCase {
         // 前面的窗口 2 竖直方向盖住了窗口 1 的顶边（y=500）中间一段
         let ps = Platforms.compute(screens: [main], windows: [win(2, 250, 400, 100, 300), win(1, 100, 200, 400, 300)], walkOnWindows: true)
         XCTAssertEqual(segments(ps, 1), [Segment(y: 500, minX: 100, maxX: 250), Segment(y: 500, minX: 350, maxX: 500)])
+        XCTAssertEqual(covered(ps, 1), [Segment(y: 500, minX: 250, maxX: 350)])
         XCTAssertEqual(segments(ps, 2), [Segment(y: 700, minX: 250, maxX: 350)])
+        XCTAssertEqual(covered(ps, 2), [])
+        XCTAssertTrue(ps.filter { $0.kind == .window(id: 1) }.allSatisfy { $0.anchorX == 100 })
+    }
+
+    func testTooNarrowGapCountsAsCovered() {
+        // 两个前面的窗口之间只露出 20pt：站不下，并进挡住的那段
+        let ps = Platforms.compute(screens: [main], windows: [win(2, 150, 400, 100, 300), win(3, 270, 400, 100, 300), win(1, 100, 200, 400, 300)], walkOnWindows: true)
+        XCTAssertEqual(segments(ps, 1), [Segment(y: 500, minX: 100, maxX: 150), Segment(y: 500, minX: 370, maxX: 500)])
+        XCTAssertEqual(covered(ps, 1), [Segment(y: 500, minX: 150, maxX: 370)])
     }
 
     func testFrontWindowBelowTopDoesNotCover() {
@@ -49,6 +65,7 @@ final class PlatformsTests: XCTestCase {
     func testFullyCoveredTopDisappears() {
         let ps = Platforms.compute(screens: [main], windows: [win(2, 0, 300, 800, 400), win(1, 100, 200, 400, 300)], walkOnWindows: true)
         XCTAssertEqual(segments(ps, 1), [])
+        XCTAssertEqual(covered(ps, 1), [Segment(y: 500, minX: 100, maxX: 500)])
     }
 
     func testTopTooCloseToMenuBarOrTooShort() {
@@ -59,6 +76,7 @@ final class PlatformsTests: XCTestCase {
             walkOnWindows: true)
         XCTAssertEqual(segments(ps, 1), [])
         XCTAssertEqual(segments(ps, 2), [])
+        XCTAssertEqual(covered(ps, 1) + covered(ps, 2), [])
     }
 
     func testWindowSpanningTwoScreens() {
