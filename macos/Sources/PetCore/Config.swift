@@ -25,6 +25,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var watchMouse: Bool
     /// 跟着电脑作息：键鼠闲置久了坐下、睡觉，一动就醒（`Attention`）
     public var restWhenIdle: Bool
+    /// 拖动 / 缩放窗口压到小人时，小人弹到窗口顶上（`WindowHop`）
+    public var hopOnWindows: Bool
 
     /// 默认模型（不再打进 App：登录后从服务器下载）
     public static let builtinModel = "荒芜拉普兰德"
@@ -49,7 +51,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         teams: [Team] = [],
         language: String = UILanguage.system,
         watchMouse: Bool = true,
-        restWhenIdle: Bool = true
+        restWhenIdle: Bool = true,
+        hopOnWindows: Bool = false
     ) {
         self.version = version
         self.pets = pets
@@ -64,6 +67,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.language = language
         self.watchMouse = watchMouse
         self.restWhenIdle = restWhenIdle
+        self.hopOnWindows = hopOnWindows
     }
 
     public init(from decoder: Decoder) throws {
@@ -84,6 +88,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         language = (try? c.decodeIfPresent(String.self, forKey: .language)) ?? d.language
         watchMouse = (try? c.decodeIfPresent(Bool.self, forKey: .watchMouse)) ?? d.watchMouse
         restWhenIdle = (try? c.decodeIfPresent(Bool.self, forKey: .restWhenIdle)) ?? d.restWhenIdle
+        hopOnWindows = (try? c.decodeIfPresent(Bool.self, forKey: .hopOnWindows)) ?? d.hopOnWindows
     }
 
     public enum LoadResult: Equatable, Sendable {

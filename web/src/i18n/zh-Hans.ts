@@ -61,6 +61,8 @@ export const zhHans = {
     allPets: '所有桌宠',
     walkOnWindows: '在窗口上行走',
     walkOnWindowsHint: '关掉后只在屏幕底部活动',
+    hopOnWindows: '窗口撞到时跳上去',
+    hopOnWindowsHint: '拖动或缩放窗口压到桌宠时，桌宠会弹到窗口顶上',
     hideInFullscreen: '其他应用全屏时隐藏',
     hideInFullscreenHint: '有应用全屏时，隐藏那块屏幕上的桌宠',
     watchMouse: '看鼠标',

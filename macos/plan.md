@@ -22,6 +22,8 @@ P0–P5 已全部实现并部署到 Rakko 的 Mac，用法见 [README.md](README
 - **叠叠乐**（2026-09-30）：拖到别人头上就叠上去，上面的不走、被下面的带着走；头顶是 `PlatformKind.pet`（`PetCore/Stacking.swift`），复用站窗口的跟随逻辑。
 - **看鼠标 + 作息**（2026-10-01）：鼠标靠近时转过来看；键鼠闲置久了坐下、睡觉，一动就醒；深夜更容易睡。决定逻辑在 `PetCore/Attention.swift`，
   Brain 只加了 `setRest / glance / night`；平台读数（闲置秒数、鼠标坐标）压在 `Rhodeside/UserActivity.swift`，Win / Linux 的取法见根 README。
+- **窗口撞到时跳上去**（2026-10-01，默认关）：拖动 / 缩放窗口压到小人时弹到窗口顶上；判定在 `PetCore/WindowHop.swift`，Brain 只加了 `hop(to:)`，
+  原生层在 `PetManager.applyScan` 里拿前后两次扫描比。Windows 版（`desktop/core`）合并后要同步移植。
 - **行为参数**：状态时长、各动作概率、跳窗概率、悬停透明度放在前端的 `rhodeside-tuning.json`，随前端热更新；状态机本身仍在 Swift。
 
 资源占用（1 只桌宠，footprint）：App 25 MB；每只桌宠的 WebContent 进程 35–65 MB；整个 App 共用的 WebKit GPU 进程约 340 MB（其中 300 MB 为显存映射，稳定不增长）。上限 8 只。

@@ -58,6 +58,8 @@ export const zhHant: Messages = {
     allPets: '所有桌寵',
     walkOnWindows: '在視窗上行走',
     walkOnWindowsHint: '關閉後只在屏幕底部活動',
+    hopOnWindows: '視窗撞到時跳上去',
+    hopOnWindowsHint: '拖動或縮放視窗壓到桌寵時，桌寵會彈到視窗頂上',
     hideInFullscreen: '其他應用程式全屏幕時隱藏',
     hideInFullscreenHint: '有應用程式全屏幕時，隱藏那個屏幕上的桌寵',
     watchMouse: '看滑鼠',

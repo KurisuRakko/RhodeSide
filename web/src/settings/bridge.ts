@@ -56,6 +56,8 @@ export interface AppConfig {
   watchMouse?: boolean
   /** 键鼠闲置久了坐下、睡觉；老版本 App 没有 */
   restWhenIdle?: boolean
+  /** 拖动 / 缩放窗口压到小人时，小人弹到窗口顶上；老版本 App 没有 */
+  hopOnWindows?: boolean
 }
 
 export interface UpdateStatus {
@@ -258,6 +260,7 @@ async function fakeState(): Promise<NativeState> {
       language: 'system',
       watchMouse: true,
       restWhenIdle: true,
+      hopOnWindows: false,
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],

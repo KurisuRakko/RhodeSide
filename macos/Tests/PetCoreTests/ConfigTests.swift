@@ -151,6 +151,8 @@ final class ConfigTests: XCTestCase {
         let off = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"watchMouse": false, "restWhenIdle": false}"#.utf8))
         XCTAssertFalse(off.watchMouse)
         XCTAssertFalse(off.restWhenIdle)
+        XCTAssertFalse(c.hopOnWindows, "窗口撞到时跳上去默认关")
+        XCTAssertTrue(try JSONDecoder().decode(AppConfig.self, from: Data(#"{"hopOnWindows": true}"#.utf8)).hopOnWindows)
 
         let old = try JSONDecoder().decode(Tuning.self, from: Data(#"{"idle": [1, 2]}"#.utf8))
         XCTAssertEqual(old.restSit, 60)

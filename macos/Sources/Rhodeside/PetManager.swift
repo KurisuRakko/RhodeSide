@@ -17,6 +17,8 @@ final class PetManager {
     private(set) var platforms: [Platform] = []
     private(set) var fullscreen: Set<UInt32> = []
     private var scanFrames: [UInt32: CGRect] = [:]
+    /// 窗口撞到小人（`hopOnWindows`）：最近有窗口在动，这之前每跳都扫，免得快速拖过去时在两次扫描之间整个穿过小人
+    private var windowsMovingUntil: CFTimeInterval = 0
     private var primaryHeight: CGFloat = 0
     private let scanner = BackgroundScanner()
     private let tracker = WindowTracker()
@@ -102,7 +104,7 @@ final class PetManager {
         let scan = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self else { return }
             tick += 1
-            let urgent = self.pets.contains { $0.brain.behavior == .fall || $0.brain.behavior == .held }
+            let urgent = self.pets.contains { $0.brain.behavior == .fall || $0.brain.behavior == .held } || CACurrentMediaTime() < self.windowsMovingUntil
             if urgent || tick % 3 == 0 { self.rescan() }
             self.stepCompanions()
             self.stepAttention()
@@ -160,12 +162,49 @@ final class PetManager {
     }
 
     private func applyScan(_ r: BackgroundScanner.Result) {
+        if config.hopOnWindows, config.walkOnWindows { hopOntoBumpingWindows(r) }
         screens = r.screens
         windows = r.windows
         scanFrames = r.frames
         platforms = r.platforms
         fullscreen = r.fullscreen
         for pet in pets { pet.setHidden(shouldHide(pet)) }
+    }
+
+    /// 窗口撞到小人：和上一次扫描比，挪动 / 缩放后新压到小人（连同叠在它头上的那摞）身上的窗口，小人弹到它顶上
+    private func hopOntoBumpingWindows(_ r: BackgroundScanner.Result) {
+        if r.windows.contains(where: { w in scanFrames[w.id].map { $0 != w.frame } ?? false }) {
+            windowsMovingUntil = CACurrentMediaTime() + 1
+        }
+        guard !frozen, !userHidden else { return }
+        for pet in pets where pet.info != nil && !pet.hidden && pet.brain.isStanding && !pet.brain.isOnPet {
+            let b = pet.brain
+            var exclude: UInt32?
+            if case .some(.window(let id)) = b.support.kind { exclude = id }
+            let body = WindowHop.body(foot: b.foot, halfWidth: b.params.halfWidth, top: stackTop(of: pet))
+            guard let w = WindowHop.hit(body: body, old: scanFrames, new: r.windows, exclude: exclude),
+                  let p = WindowHop.target(window: w.id, platforms: r.platforms, x: Double(b.foot.x), half: b.params.halfWidth),
+                  b.hop(to: p) else { continue }
+            Log.info("[\(pet.short)] 被「\(w.owner)」的窗口撞到，跳上去 (\(Int(p.x)), \(Int(p.y)))")
+        }
+    }
+
+    /// 叠在它头上的那摞（沿「站在谁头上」往下能走到它）里最高的头顶；没叠着就是自己的头顶
+    private func stackTop(of pet: Pet) -> Double {
+        let byID = Dictionary(pets.map { ($0.config.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var top = Double(pet.brain.foot.y) + pet.brain.headHeight
+        for p in pets where p !== pet {
+            var cur = p.brain.below
+            for _ in 0..<16 {
+                guard let id = cur else { break }
+                if id == pet.config.id {
+                    top = max(top, Double(p.brain.foot.y) + p.brain.headHeight)
+                    break
+                }
+                cur = byID[id]?.brain.below
+            }
+        }
+        return top
     }
 
     /// 给某只桌宠的世界（含别的小人的头顶）：脚下那个窗口由 WindowTracker 在后台高频查位置，平台跟着平移（全量扫描每秒只有 10 次，跟随会一顿一顿）

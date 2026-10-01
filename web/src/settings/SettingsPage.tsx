@@ -46,6 +46,14 @@ export function SettingsPage({ state }: { state: NativeState }) {
           checked={config.walkOnWindows}
           onChange={(v) => send({ type: 'updateGlobal', patch: { walkOnWindows: v } })}
         />
+        {config.hopOnWindows !== undefined && config.walkOnWindows && (
+          <SwitchRow
+            label={s.hopOnWindows}
+            hint={s.hopOnWindowsHint}
+            checked={config.hopOnWindows}
+            onChange={(v) => send({ type: 'updateGlobal', patch: { hopOnWindows: v } })}
+          />
+        )}
         <SwitchRow
           label={s.hideInFullscreen}
           hint={s.hideInFullscreenHint}

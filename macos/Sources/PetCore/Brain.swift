@@ -290,6 +290,30 @@ public final class Brain {
         return true
     }
 
+    /// 窗口撞上来了：弹一个抛物线跳到 `p`（窗口顶边上的落脚点），落地还是走 `fall` 的落平台逻辑。
+    /// 顶点比 p 高一点（往下落时才认平台，上升途中不会被别的平台挡住）；被拎着、在空中、叠在别人头上的不跳
+    @discardableResult
+    public func hop(to p: CGPoint) -> Bool {
+        guard isStanding, !isOnPet else { return false }
+        let g = Self.gravity
+        let margin = max(40, params.height * 0.3)
+        let rise = max(Double(p.y - foot.y), 0) + margin
+        // 逐帧积分（先减速度再走）比解析解矮半帧的位移：按 30fps 补上
+        let vy = (2 * g * rise).squareRoot() + g / 60
+        let t = vy / g + (2 * margin / g).squareRoot()
+        // 下落时水平速度按 exp(-1.2t) 衰减：反推起跳的水平速度
+        let k = 1.2
+        let vx = Double(p.x - foot.x) * k / (1 - exp(-k * t))
+        thrown = false
+        mayStack = false
+        support = .none
+        anchor = nil
+        velocity = CGVector(dx: min(max(vx, -Self.maxSpeed), Self.maxSpeed), dy: vy)
+        if abs(vx) > 1 { dir = vx > 0 ? 1 : -1 }
+        enter(.fall)
+        return true
+    }
+
     /* ---------------------------------------------------------------- 套组联动 */
 
     /// 取走积攒的事件

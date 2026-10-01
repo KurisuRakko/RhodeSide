@@ -60,6 +60,8 @@ export const en: Messages = {
     allPets: 'All pets',
     walkOnWindows: 'Walk on windows',
     walkOnWindowsHint: 'When off, pets stay along the bottom of the screen',
+    hopOnWindows: 'Hop onto bumping windows',
+    hopOnWindowsHint: 'When you drag or resize a window into a pet, it hops onto the window’s top edge',
     hideInFullscreen: 'Hide when another app is full screen',
     hideInFullscreenHint: 'Hides the pets on a screen while an app is full screen there',
     watchMouse: 'Watch the pointer',
