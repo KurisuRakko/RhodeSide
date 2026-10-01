@@ -44,13 +44,10 @@ final class Pet: NSObject {
     private(set) var layer: UInt32?
     private var sentAnim = -1
     private var sentDir = 0
-    /// 最近一次发给网页的脚底位置（窗口内横坐标）、速度、窗口宽度
-    private var sentPosX: CGFloat = -1
-    private var sentPosVX: Double = .nan
-    private var sentPosW: CGFloat = 0
-    private var sentPosY: CGFloat = -1
-    private var sentPosVY: Double = .nan
-    private var sentPosH: CGFloat = 0
+    /// 最近一次发给网页的位置和运动（网页照它外推）、那时的窗口大小和时间：外推得准就不再发
+    private var sentMotion: Motion?
+    private var sentSize: CGSize = .zero
+    private var sentAt: CFTimeInterval = 0
     private var faceSentAt: CFTimeInterval = 0
     /// 显示器睡了（页面暂停着）；醒来打招呼要等它亮
     private var screenAsleep = false
@@ -249,7 +246,7 @@ final class Pet: NSObject {
         brain.refreshAnimation()
         sentAnim = -1
         sentDir = 0
-        sentPosX = -1
+        sentMotion = nil
         bounds = nil
         if !placed {
             placed = true
@@ -442,19 +439,26 @@ final class Pet: NSObject {
         }
         let spent = CACurrentMediaTime() - t0
         if spent > 0.05 { Log.warn("[\(short)] 挪窗口卡了 \(Int(spent * 1000)) ms（\(brain.behavior.rawValue)\(flight != nil ? "，飞行带子" : "")）") }
-        let x = brain.foot.x - target.minX
-        let vx = brain.visualVX
-        let y = brain.foot.y - target.minY
-        let vy = brain.visualVY
-        if abs(x - sentPosX) > 0.01 || vx != sentPosVX || target.width != sentPosW || abs(y - sentPosY) > 0.01 || vy != sentPosVY || target.height != sentPosH {
-            sentPosX = x
-            sentPosVX = vx
-            sentPosW = target.width
-            sentPosY = y
-            sentPosVY = vy
-            sentPosH = target.height
-            window.webView.send(["type": "pos", "x": x, "vx": vx, "w": target.width, "y": y, "vy": vy, "h": target.height])
+        sendPos(foot: CGPoint(x: brain.foot.x - target.minX, y: brain.foot.y - target.minY), size: target.size)
+    }
+
+    /// 位置消息只在网页外推得不准时才发（起步、停下、转向、换带子、误差超过 1.5pt），另外每 250ms 校正一次：
+    /// 每条消息都是一次跨进程调用，以前走路时每帧一条（一只小人每秒约 60 条）
+    private func sendPos(foot p: CGPoint, size: CGSize) {
+        let now = CACurrentMediaTime()
+        let air = brain.behavior == .fall
+        let m = Motion(x: Double(p.x), vx: brain.visualVX, y: Double(p.y), vy: brain.visualVY,
+                       g: air ? Brain.gravity : 0, k: air ? Brain.airDrag : 0)
+        if let last = sentMotion, size == sentSize, now - sentAt < 0.25, last.g == m.g, air || last.vx == m.vx {
+            let q = last.at(now - sentAt)
+            if abs(q.x - m.x) <= 1.5, abs(q.y - m.y) <= 1.5 { return }
         }
+        sentMotion = m
+        sentSize = size
+        sentAt = now
+        var msg: [String: Any] = ["type": "pos", "x": m.x, "vx": m.vx, "w": size.width, "y": m.y, "vy": m.vy, "h": size.height]
+        if air { msg["g"] = m.g; msg["k"] = m.k }
+        window.webView.send(msg)
     }
 
     /// 悬停透明开着、没按 ⌥：鼠标在小人附近时变淡并一律穿透（拖不动、点不到，按住 ⌥ 恢复）
@@ -678,6 +682,9 @@ extension Pet: WKScriptMessageHandler {
         case "loaded": handleLoaded(b)
         case "layout": handleLayout(b)
         case "faced": brain.facePending = false
+        case "stall":
+            // 网页的画面也停了：和同一时刻原生的「主线程卡了」对照，两边一起停 = 系统 / WindowServer 停了
+            if !hidden { Log.warn("[\(short)] 网页画面停了 \(Int(b.double("ms") ?? 0)) ms") }
         case "bounds":
             bounds = CGRect(x: b.double("x") ?? 0, y: b.double("y") ?? 0, width: b.double("w") ?? 0, height: b.double("h") ?? 0)
             boundsX = b.double("sx").map { CGFloat($0) }

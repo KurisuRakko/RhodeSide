@@ -6,6 +6,9 @@ import WebKit
 final class PetPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+    /// 不许 AppKit 把窗口往屏幕里推：带子（屏幕宽 × 模型高，头上有特效的模型很高）站在靠上的窗口上、飞到高处时上沿会伸进菜单栏，
+    /// 默认会被整条往下推，小人跟着陷下去。伸出去的只是透明区域，点击按像素判断，照样穿透
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
 
 protocol MouseCatcherDelegate: AnyObject {

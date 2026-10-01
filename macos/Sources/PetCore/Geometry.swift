@@ -30,6 +30,36 @@ public struct PetLayout: Codable, Equatable, Sendable {
     }
 }
 
+/// 网页在两次位置消息之间怎么外推小人的位置（`web/src/pet/motion.ts` 的 `extrapolate` 是同一个公式）：
+/// 地上匀速；空中（g > 0）水平速度按 e^(-k·t) 衰减、竖直按重力走抛物线。
+/// 外推有上限：原生层卡住时网页还在推，原生恢复后每帧最多只走 0.05 秒，推太远会冲过头再弹回来。
+/// 地上 0.3 秒（略长于 250ms 的校正周期，平时用不满），空中 0.1 秒（空中本来每 ~60ms 就会补发一次）
+public struct Motion: Equatable, Sendable {
+    public var x: Double
+    public var vx: Double
+    public var y: Double
+    public var vy: Double
+    public var g: Double
+    public var k: Double
+    public static let maxAhead = 0.3
+    public static let maxAheadInAir = 0.1
+
+    public init(x: Double, vx: Double, y: Double, vy: Double = 0, g: Double = 0, k: Double = 0) {
+        self.x = x
+        self.vx = vx
+        self.y = y
+        self.vy = vy
+        self.g = g
+        self.k = k
+    }
+
+    public func at(_ rawT: Double) -> (x: Double, y: Double) {
+        let t = min(max(rawT, 0), g > 0 ? Self.maxAheadInAir : Self.maxAhead)
+        let dx = k > 0 ? vx * (1 - exp(-k * t)) / k : vx * t
+        return (x + dx, y + vy * t - g * t * t / 2)
+    }
+}
+
 /// 一条能站的水平线段（地面或窗口顶边没被挡住的部分）。
 public struct Segment: Codable, Equatable, Sendable {
     public var y: Double

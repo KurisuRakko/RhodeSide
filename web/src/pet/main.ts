@@ -12,6 +12,7 @@
  */
 import { collectSets, fetchManifest, fetchSetImages, fetchSkeletons, type ModelSet } from '../stage/loader.ts'
 import { boundsOf, loadModel, type Box, type LoadedModel } from '../stage/model.ts'
+import { extrapolate } from './motion.ts'
 import { detectCombos } from '../stage/combos.ts'
 import { LANGS, setLang, type Lang } from '../i18n/index.ts'
 import { listen, native, post as postNative } from '../native/transport.ts'
@@ -45,7 +46,7 @@ type Incoming =
   | { type: 'hit'; id: number; x: number; y: number }
   | { type: 'fps'; value: number }
   | { type: 'pause'; paused: boolean }
-  | { type: 'pos'; x: number; vx: number; w: number; y?: number; vy?: number; h?: number }
+  | { type: 'pos'; x: number; vx: number; w: number; y?: number; vy?: number; h?: number; g?: number; k?: number }
   | { type: 'touch' }
   | ({ type: 'voice' } & VoiceSettings)
 
@@ -154,6 +155,12 @@ let posW = 0
 let posY = 0
 let posVY = 0
 let posH = 0
+/** 空中：重力、水平阻尼（协议 5；地上是 0） */
+let posG = 0
+let posK = 0
+/** rAF 间隔统计：每秒把最长的一次停顿报给原生层（对照原生的「主线程卡了」，看是谁停了） */
+let gapMax = 0
+let gapSince = 0
 let posAt = 0
 let sizeKey = ''
 /** 等下一帧渲染完再回答的点击判定 / 快照 */
@@ -308,6 +315,14 @@ function frame(now: number) {
     return
   }
   if (minFrameMs && last && now - last < minFrameMs) return
+  if (native && last) {
+    gapMax = Math.max(gapMax, now - last)
+    if (now - gapSince >= 1000) {
+      if (gapMax > 150) post({ type: 'stall', ms: Math.round(gapMax) })
+      gapMax = 0
+      gapSince = now
+    }
+  }
   const realDt = last ? Math.min(0.05, (now - last) / 1000) : 0
   const dt = realDt * speed
   last = now
@@ -341,10 +356,10 @@ function frame(now: number) {
     flushReads()
     return
   }
-  // 原生层和这里的帧不同步：用最后一次位置 + 速度外推（最多外推 20ms，停下时不会冲过头太多）
-  const ahead = Math.min(Math.max(now - posAt, 0) / 1000, 0.02)
-  skeleton.x = placed ? posX + posVX * ahead : cssW / 2
-  const footY = placed && posH > 0 ? posY + posVY * ahead : layout.footY
+  // 原生层只在外推不准时才发位置：按最后一次位置和运动外推（motion.ts）
+  const at = extrapolate({ x: posX, vx: posVX, y: posY, vy: posVY, g: posG, k: posK }, (now - posAt) / 1000)
+  skeleton.x = placed ? at.x : cssW / 2
+  const footY = placed && posH > 0 ? at.y : layout.footY
   skeleton.y = footY - model.rest.y * scale
   skeleton.updateWorldTransform()
   renderer.begin()
@@ -360,12 +375,13 @@ function frame(now: number) {
   }
   if (native && now - lastBounds >= 100) {
     lastBounds = now
-    const b = boundsOf(skeleton, offset, size, temp)
-    // 包围盒没变（待机、坐着）就不发，省掉无用的跨进程消息
+    const abs = boundsOf(skeleton, offset, size, temp)
+    // 报相对脚底的包围盒（sx = sy = 0，原生层按脚现在的位置平移）：走路、下落时不变，只在动画让它变了时才发
+    const b = abs && { x: abs.x - skeleton.x, y: abs.y - footY, w: abs.w, h: abs.h }
     const key = b ? `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.w)},${Math.round(b.h)}|${cssW}x${cssH}|${placed}` : ''
     if (b && key !== sentBounds) {
       sentBounds = key
-      post({ type: 'bounds', x: b.x, y: b.y, w: b.w, h: b.h, frameW: cssW, placed, sx: skeleton.x, sy: footY })
+      post({ type: 'bounds', x: b.x, y: b.y, w: b.w, h: b.h, frameW: cssW, placed, sx: 0, sy: 0 })
     }
   }
 }
@@ -489,6 +505,8 @@ function receive(msg: Incoming) {
       posY = Number.isFinite(msg.y) ? msg.y! : 0
       posVY = Number.isFinite(msg.vy) ? msg.vy! : 0
       posH = Number.isFinite(msg.h) ? msg.h! : 0
+      posG = Number.isFinite(msg.g) ? msg.g! : 0
+      posK = Number.isFinite(msg.k) ? msg.k! : 0
       posAt = performance.now()
       break
     case 'touch':

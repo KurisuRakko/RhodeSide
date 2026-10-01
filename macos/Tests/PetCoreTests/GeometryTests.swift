@@ -36,4 +36,16 @@ final class GeometryTests: XCTestCase {
         let g = Segment.ground(visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 887))
         XCTAssertEqual(g, Segment(y: 70, minX: 0, maxX: 1512))
     }
+
+    /// 和 web/src/pet/motion.test.ts 同一组数：两边外推公式一致
+    func testMotionMatchesWebExtrapolation() {
+        let ground = Motion(x: 100, vx: 50, y: 54).at(0.2)
+        XCTAssertEqual(ground.x, 110, accuracy: 1e-9)
+        XCTAssertEqual(ground.y, 54, accuracy: 1e-9)
+        let air = Motion(x: 0, vx: 120, y: 0, vy: 1000, g: 2800, k: 1.2).at(0.08)
+        XCTAssertEqual(air.x, 120 * (1 - exp(-1.2 * 0.08)) / 1.2, accuracy: 1e-9)
+        XCTAssertEqual(air.y, 1000 * 0.08 - 1400 * 0.0064, accuracy: 1e-9)
+        XCTAssertEqual(Motion(x: 0, vx: 0, y: 0, g: 2800, k: 1.2).at(5).y, -1400 * Motion.maxAheadInAir * Motion.maxAheadInAir, accuracy: 1e-9)
+        XCTAssertEqual(Motion(x: 0, vx: 100, y: 0).at(5).x, 100 * Motion.maxAhead, accuracy: 1e-9)
+    }
 }

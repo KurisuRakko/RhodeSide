@@ -26,6 +26,7 @@ P0–P5 已全部实现并部署到 Rakko 的 Mac，用法见 [README.md](README
   原生层在 `PetManager.applyScan` 里拿前后两次扫描比。Windows 版（`desktop/core`）合并后要同步移植。
 - **同层 / 焦点 / 飞行带子**（2026-10-01，`tasks/009-window-layer.plan.md`）：站在窗口上和它同层、被盖住走到露出来的地方；不在焦点的窗口上只在露出来那段里溜达；
   空中一次拉高窗口不再每帧挪。平台多了 `covered`，`World` 多了 `focus`；协议 3 → 4。
+- **位置消息节流 + 带子不被推**（2026-10-01，协议 5）：`pos` 从每帧一条改成外推不准才发；`PetPanel` 不让 AppKit 把窗口推回屏幕里（修 Mon3tr 站在高处窗口上陷下去）。
 - **行为参数**：状态时长、各动作概率、跳窗概率、悬停透明度放在前端的 `rhodeside-tuning.json`，随前端热更新；状态机本身仍在 Swift。
 
 资源占用（1 只桌宠，footprint）：App 25 MB；每只桌宠的 WebContent 进程 35–65 MB；整个 App 共用的 WebKit GPU 进程约 340 MB（其中 300 MB 为显存映射，稳定不增长）。上限 8 只。

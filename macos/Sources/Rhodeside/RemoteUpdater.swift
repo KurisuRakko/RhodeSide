@@ -11,7 +11,7 @@ import PetCore
 /// 更新通道开了鉴权时，每个请求带 Priestess 换来的票据（X-Rhodeside-Ticket）。
 final class RemoteUpdater {
     /// 原生层 ↔ 网页的消息协议版本；改协议时和 scripts/publish.mjs 的 BRIDGE 一起 +1，旧 App 就不会装上新协议的前端
-    static let bridge = 4
+    static let bridge = 5
     static let publicKey = "22wsvEszLCFB/sCF9GSQuYfq0PtB9YU94J3CEuAm8dc="
 
     let auth: Auth

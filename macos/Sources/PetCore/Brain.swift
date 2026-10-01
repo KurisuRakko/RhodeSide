@@ -154,6 +154,8 @@ public struct World: Sendable {
 public final class Brain {
     public static let gravity = 2800.0
     public static let maxSpeed = 3000.0
+    /// 空中水平速度的衰减率（每秒 e^-airDrag）
+    public static let airDrag = 1.2
     /// 相邻平台高度差在这以内可以直接走过去（两块屏幕的地面、并排的两个窗口）
     public static let stepTolerance = 6.0
     public var params: PetParams
@@ -336,7 +338,7 @@ public final class Brain {
         let vy = (2 * g * rise).squareRoot() + g / 60
         let t = vy / g + (2 * margin / g).squareRoot()
         // 下落时水平速度按 exp(-1.2t) 衰减：反推起跳的水平速度
-        let k = 1.2
+        let k = Self.airDrag
         let vx = Double(p.x - foot.x) * k / (1 - exp(-k * t))
         thrown = false
         mayStack = false
@@ -755,7 +757,7 @@ public final class Brain {
 
     private func fall(_ dt: Double, _ world: World) {
         velocity.dy = max(velocity.dy - Self.gravity * dt, -Self.maxSpeed)
-        velocity.dx *= exp(-1.2 * dt)
+        velocity.dx *= exp(-Self.airDrag * dt)
         let old = foot
         var nx = old.x + velocity.dx * dt
         let ny = old.y + velocity.dy * dt
