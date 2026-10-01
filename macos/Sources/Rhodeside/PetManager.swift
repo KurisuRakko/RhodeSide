@@ -190,7 +190,7 @@ final class PetManager {
                 break // 刚站上去，后台还没查到：先按全量扫描的数据
             }
         }
-        ps += Stacking.heads(for: pet.config.id, pets: pets.map(\.head)) // 叠叠乐：别的小人的头顶
+        ps += Stacking.heads(for: pet.config.id, pets: pets.map(\.head), screens: screens) // 叠叠乐：别的小人的头顶
         return World(platforms: ps, screens: screens)
     }
 

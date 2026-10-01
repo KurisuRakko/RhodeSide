@@ -14,13 +14,13 @@ final class StackingTests: XCTestCase {
     }
 
     func head(_ id: String, _ b: Brain, usable: Bool = true) -> Stacking.Head {
-        Stacking.Head(id: id, foot: b.foot, height: b.params.height, halfWidth: b.params.halfWidth, below: b.below, usable: usable)
+        Stacking.Head(id: id, foot: b.foot, height: b.params.height, halfWidth: b.params.halfWidth, below: b.below, usable: usable, standing: b.isStanding)
     }
 
     /// 和原生层的 `PetManager.world(for:)` 一样：固定平台 + 别的小人的头顶
     func world(for id: String, _ pets: [(String, Brain)], extra: [Platform] = [], gone: Set<String> = []) -> World {
         let hs = pets.map { head($0.0, $0.1, usable: !gone.contains($0.0)) }
-        return World(platforms: [ground] + extra + Stacking.heads(for: id, pets: hs), screens: [screen])
+        return World(platforms: [ground] + extra + Stacking.heads(for: id, pets: hs, screens: [screen]), screens: [screen])
     }
 
     /// 每帧按顺序各走一步（各自的 display link），每只走之前按别的小人现在的位置重算世界
@@ -58,6 +58,76 @@ final class StackingTests: XCTestCase {
         let loop = [Stacking.Head(id: "A", foot: .zero, height: 1, halfWidth: 1, below: "B"),
                     Stacking.Head(id: "B", foot: .zero, height: 1, halfWidth: 1, below: "A")]
         XCTAssertEqual(Stacking.heads(for: "C", pets: loop).count, 2)
+    }
+
+    func testHeadsMustBeInsideScreen() {
+        let hs = [
+            Stacking.Head(id: "A", foot: CGPoint(x: 700, y: 70), height: 120, halfWidth: 30, below: nil),
+            // 站在快顶到菜单栏的窗口上：头顶 970 超过了 957 - 40
+            Stacking.Head(id: "B", foot: CGPoint(x: 300, y: 850), height: 120, halfWidth: 30, below: nil),
+        ]
+        XCTAssertEqual(Stacking.heads(for: "C", pets: hs, screens: [screen]).map(\.kind), [.pet(id: "A")])
+        XCTAssertEqual(Stacking.heads(for: "C", pets: hs).count, 2) // 不给屏幕不过滤
+        XCTAssertEqual(Stacking.heads(for: "C", pets: hs, screens: []).count, 2) // 屏幕还没扫到也不过滤
+        var held = hs
+        held[1].standing = false // 被拎着 / 在空中的不过滤
+        XCTAssertEqual(Stacking.heads(for: "C", pets: held, screens: [screen]).count, 2)
+    }
+
+    /// 拎着一摞拖到屏幕顶上、往上扔：上面那只照样被带着，落稳了也还叠着
+    func testCarriedStackSurvivesDragAndThrowNearTop() {
+        let a = brain(at: CGPoint(x: 700, y: 70))
+        let b = brain(at: CGPoint(x: 300, y: 70))
+        let pets = [("A", a), ("B", b)]
+        run(pets, seconds: 0.1)
+        drop(b, over: CGPoint(x: 710, y: 500), world(for: "B", pets))
+        run(pets, seconds: 1)
+        XCTAssertEqual(b.below, "A")
+        a.grab()
+        a.drag(to: CGPoint(x: 700, y: 950), world: world(for: "A", pets)) // 头顶到 1070，在屏幕外
+        run(pets, seconds: 0.2)
+        XCTAssertEqual(b.below, "A")
+        a.release(velocity: CGVector(dx: 0, dy: 2500))
+        run(pets, seconds: 3)
+        XCTAssertEqual(a.support.kind, .ground(screen: 1))
+        XCTAssertEqual(b.below, "A")
+        XCTAssertEqual(b.foot.y, 190)
+    }
+
+    /// 站在高处窗口上的那只头顶伸出了屏幕：扔上去的落不到它头上，落到窗口上
+    func testDropOnHeadAboveScreenLandsOnWindowInstead() {
+        let win = Platform(kind: .window(id: 5), segment: Segment(y: 850, minX: 500, maxX: 1000), anchorX: 500)
+        let a = brain(at: CGPoint(x: 700, y: 850))
+        let b = brain(at: CGPoint(x: 300, y: 70))
+        let pets = [("A", a), ("B", b)]
+        run(pets, seconds: 0.1, extra: [win])
+        XCTAssertEqual(a.support.kind, .window(id: 5))
+        drop(b, over: CGPoint(x: 710, y: 975), world(for: "B", pets, extra: [win]))
+        run(pets, seconds: 1, extra: [win])
+        XCTAssertEqual(b.support.kind, .window(id: 5))
+        XCTAssertEqual(b.foot.y, 850)
+    }
+
+    /// 叠好以后下面那只的窗口被挪到了高处，头顶出了屏幕：上面那只掉下来，不会一直待在屏幕外面
+    func testStackedPetFallsOffWhenLiftedAboveScreen() {
+        var win = Platform(kind: .window(id: 5), segment: Segment(y: 600, minX: 500, maxX: 1000), anchorX: 500)
+        let a = brain(at: CGPoint(x: 700, y: 600))
+        let b = brain(at: CGPoint(x: 300, y: 70))
+        let pets = [("A", a), ("B", b)]
+        run(pets, seconds: 0.1, extra: [win])
+        drop(b, over: CGPoint(x: 710, y: 800), world(for: "B", pets, extra: [win]))
+        run(pets, seconds: 1, extra: [win])
+        XCTAssertEqual(b.support.kind, .pet(id: "A"))
+        // 窗口一帧帧往上挪到 850（A 的头顶到 970，超过 957 - 40）
+        for y in stride(from: 605.0, through: 850, by: 5) {
+            win.segment.y = y
+            run(pets, seconds: 1.0 / 60, extra: [win])
+        }
+        run(pets, seconds: 1, extra: [win])
+        XCTAssertEqual(a.foot.y, 850)
+        XCTAssertFalse(b.isOnPet)
+        XCTAssertTrue(b.isStanding)
+        XCTAssertLessThanOrEqual(b.foot.y, 850)
     }
 
     func testDroppedOnHeadStandsAndIsCarriedByWalkingPet() {

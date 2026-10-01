@@ -336,7 +336,7 @@ final class Pet: NSObject {
     /// 给叠叠乐算头顶平台用
     var head: Stacking.Head {
         Stacking.Head(id: config.id, foot: brain.foot, height: brain.headHeight, halfWidth: brain.params.halfWidth,
-                      below: brain.below, usable: info != nil && !hidden)
+                      below: brain.below, usable: info != nil && !hidden, standing: brain.isStanding)
     }
 
     private func syncWeb(_ now: CFTimeInterval) {
