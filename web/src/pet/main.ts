@@ -120,12 +120,23 @@ let state: any = null
 let layout: Layout | null = null
 let scale = 1
 let dir: 1 | -1 = 1
-// 画出来的朝向：转身时从 ±1 平滑过渡到 dir（横向压扁再展开），不是一帧翻过去
-let turn = 1
-let turnFrom = 1
+// 转身像一张纸片绕竖轴转：angle 0 = 朝右，π = 朝左，转身时从当前角度甩到 dir 对应的角度。
+// 中途带透视（转向观众那一侧的边变高、另一侧变矮），侧对时稍微变暗，最后稍微转过头一点再回正。
+let angle = 0
+let angleFrom = 0
 let turnT = 1
+let turnTime = 0
 /** 整个转身（从一边到另一边）用多久，秒 */
-const TURN_TIME = 0.22
+const TURN_TIME = 0.26
+/** 转过头的程度（easeOutBack 的系数，越大回弹越明显） */
+const TURN_BACK = 1.2
+/** 侧对时最多暗多少 */
+const TURN_SHADE = 0.28
+/** 透视最多让近边变高多少（窗口顶上也按这个留了余量，不会被裁） */
+const TURN_GROW = 0.1
+const turnMatrix = new spine.webgl.Matrix4()
+const turnView = new spine.webgl.Matrix4()
+const faceAngle = (d: number) => (d < 0 ? Math.PI : 0)
 let speed = 1
 let pendingFaced = false
 let snapFace = true
@@ -147,13 +158,41 @@ let paused = false
 /** 限帧（毫秒，0 = 不限）：原生层在站着、坐着、睡觉时让它降到 30fps */
 let minFrameMs = 0
 
+/**
+ * 把纸片绕竖轴（x = px）转一下再画：c = cos、s = sin（已经扣掉镜像，c ≥ 0）。
+ * 屏幕上 x' = px + (x - px)·c / w，y' = fy + (y - fy) / w，w = 1 - (x - px)·s / D：
+ * 离观众近的那条边变高、远的变矮，脚底（y = fy）不动。D 按模型半宽取，保证近边最多变高 TURN_GROW。
+ */
+function applyTurn(px: number, fy: number, c: number, s: number) {
+  if (!model) return
+  const u = model.union
+  const half = Math.max(Math.abs(u.x), Math.abs(u.x + u.w)) * scale
+  const k = (s * (1 - 1 / (1 + TURN_GROW))) / Math.max(half, 1)
+  const a = c - px * k
+  const m = turnMatrix.values
+  m.fill(0)
+  // Spine 的 Matrix4 是列主序：values[列 * 4 + 行]
+  m[0] = a
+  m[12] = px * (1 - a)
+  m[1] = -fy * k
+  m[5] = 1
+  m[13] = fy * k * px
+  m[10] = 1
+  m[3] = -k
+  m[15] = 1 + k * px
+  turnView.set(renderer.camera.projectionView.values)
+  turnView.multiply(turnMatrix)
+  renderer.batcherShader.setUniform4x4f(spine.webgl.Shader.MVP_MATRIX, turnView.values)
+}
+
 function computeLayout(m: LoadedModel, s: number): Layout {
   const u = m.union
   // 翻转以根骨骼（x = 0）为轴镜像：宽度按两侧里更远的那边取，朝哪边都不会被窗口裁掉
   const half = Math.max(Math.abs(u.x), Math.abs(u.x + u.w)) * s
   const w = Math.ceil(2 * (half + PAD))
-  const h = Math.ceil(u.h * s + 2 * PAD)
-  return { w, h, footX: w / 2, footY: (m.rest.y - u.y) * s + PAD }
+  // 上下都多留一点：纸片转身时透视以脚底为准把近的那条边放大，脚下伸出去的部分（坐姿、特效）也会往下长
+  const h = Math.ceil(u.h * s * (1 + TURN_GROW) + 2 * PAD)
+  return { w, h, footX: w / 2, footY: (m.rest.y - u.y) * s * (1 + TURN_GROW) + PAD }
 }
 
 /** 骨骼单位的盒子 → pt，并以脚底锚点为原点 */
@@ -189,7 +228,7 @@ async function load(msg: LoadMsg) {
     model = next
     skeleton = new spine.Skeleton(next.data)
     // 新模型直接按当前朝向出场；原生层载入后发的第一个 face 也不转（见 face）
-    turn = dir
+    angle = faceAngle(dir)
     turnT = 1
     snapFace = true
     const skin = next.skins.includes('default') ? 'default' : next.skins[0]
@@ -278,14 +317,19 @@ function frame(now: number) {
   state.update(dt)
   state.apply(skeleton)
   if (turnT < 1) {
-    turnT = Math.min(1, turnT + realDt / (TURN_TIME * Math.max(Math.abs(dir - turnFrom) / 2, 0.01)))
-    const e = turnT * turnT * (3 - 2 * turnT)
-    turn = turnFrom + (dir - turnFrom) * e
+    turnT = Math.min(1, turnT + realDt / turnTime)
+    // 起手稍慢（t^1.5），后面用 easeOutBack：末尾稍微转过头再回正，像纸片被甩过去
+    const t1 = Math.pow(turnT, 1.5) - 1
+    const e = 1 + (TURN_BACK + 1) * t1 * t1 * t1 + TURN_BACK * t1 * t1
+    angle = turnT < 1 ? angleFrom + (faceAngle(dir) - angleFrom) * e : faceAngle(dir)
   }
-  // 转到一半（压到最窄）时身子微微抬一下，看起来像真的转过去
-  const pop = turnT < 1 ? 0.03 * Math.sin(Math.PI * turnT) : 0
-  skeleton.scaleX = scale * turn
-  skeleton.scaleY = scale * (1 + pop)
+  // 骨骼本身按「现在更朝哪边」左右镜像（包围盒、命中区域跟着对），剩下 ±90° 以内的转动交给投影
+  const cos = Math.cos(angle)
+  const side = cos >= 0 ? 1 : -1
+  skeleton.scaleX = scale * side
+  skeleton.scaleY = scale
+  const shade = 1 - TURN_SHADE * (1 - Math.abs(cos))
+  skeleton.color.set(shade, shade, shade, 1)
   const placed = posW > 0 && Math.abs(posW - cssW) < 0.5
   // 在 App 里：还没收到对得上当前窗口宽度的位置就先不画，免得在带子正中间闪一帧
   if (native && !placed) {
@@ -297,12 +341,13 @@ function frame(now: number) {
   skeleton.y = layout.footY - model.rest.y * scale
   skeleton.updateWorldTransform()
   renderer.begin()
+  if (turnT < 1) applyTurn(skeleton.x, skeleton.y + model.rest.y * scale, Math.abs(cos), Math.sin(angle) * side)
   renderer.drawSkeleton(skeleton, true)
   renderer.end()
   flushReads()
 
   // 过了中线（已经看向新方向）就回执，原生层这时候才开始走，不会倒着滑
-  if (pendingFaced && turn * dir > 0) {
+  if (pendingFaced && side === dir) {
     pendingFaced = false
     post({ type: 'faced', dir })
   }
@@ -404,11 +449,12 @@ function receive(msg: Incoming) {
       if (!skeleton || snapFace) {
         // 还没载入 / 刚载入后原生层告诉初始朝向：直接按新朝向出场，不在第一帧转一下
         snapFace = false
-        turn = dir
+        angle = faceAngle(dir)
         turnT = 1
-      } else if (turn !== dir) {
-        turnFrom = turn
+      } else if (Math.abs(angle - faceAngle(dir)) > 1e-3) {
+        angleFrom = angle
         turnT = 0
+        turnTime = TURN_TIME * Math.max(Math.abs(faceAngle(dir) - angle) / Math.PI, 0.3)
       }
       pendingFaced = true
       break
