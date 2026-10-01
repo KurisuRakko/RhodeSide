@@ -111,6 +111,8 @@ final class PetManager {
             if urgent || tick % 3 == 0 { self.rescan() }
             self.stepCompanions()
             self.stepAttention()
+            let now = CACurrentMediaTime()
+            for p in self.pets { p.rescueIfOffscreen(now: now) }
         }
         let save = Timer(timeInterval: 15, repeats: true) { [weak self] _ in self?.savePositions() }
         for t in [scan, save] { RunLoop.main.add(t, forMode: .common) }

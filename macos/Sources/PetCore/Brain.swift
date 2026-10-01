@@ -768,8 +768,10 @@ public final class Brain {
         if let s = world.screen(containing: next), ny < s.visibleFrame.minY, let g = world.ground(of: s) {
             return land(on: g, x: nx)
         }
-        let bottom = world.screens.map { Double($0.frame.minY) }.min() ?? 0
-        if ny < bottom - 50 || world.screen(spanningX: nx) == nil { return rescue(world) }
+        // 掉到横坐标所在的所有屏幕下面了（比如竖屏底边下面、旁边又没有屏幕）：放回主屏
+        let column = world.screens.filter { nx >= Double($0.frame.minX) && nx < Double($0.frame.maxX) }
+        let bottom = column.map { Double($0.frame.minY) }.min() ?? 0
+        if column.isEmpty || ny < bottom - 50 { return rescue(world) }
         foot = next
     }
 

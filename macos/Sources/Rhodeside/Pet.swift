@@ -343,6 +343,20 @@ final class Pet: NSObject {
         }
     }
 
+    /// 窗口整个不在任何屏幕上时 display link 不跳，小人就永远停在那（存的位置在屏幕外、屏幕排布变了）：
+    /// PetManager 每 0.1 秒查一次，拉回最近那块屏幕，从地面上方掉下来
+    func rescueIfOffscreen(now: CFTimeInterval) {
+        guard info != nil, !hidden, !screenAsleep, press == nil, lastTick == 0 || now - lastTick > 1 else { return }
+        let f = window.panel.frame
+        guard !NSScreen.screens.contains(where: { $0.frame.intersects(f) }) else { return }
+        let vf = manager.visibleFrame(near: brain.foot)
+        let p = CGPoint(x: min(max(brain.foot.x, vf.minX + 60), vf.maxX - 60), y: vf.minY + min(300, vf.height / 2))
+        Log.warn("[\(short)] 窗口在所有屏幕外面（脚 \(Int(brain.foot.x)), \(Int(brain.foot.y))），拉回 (\(Int(p.x)), \(Int(p.y)))")
+        brain.teleport(to: p)
+        lastTick = 0
+        applyFrame()
+    }
+
     /* ---------------------------------------------------------------- 层级 */
 
     /// 站在窗口上就和那个窗口同层（排在它正上方，前面的窗口能盖住小人）；叠着的一摞看最下面那只。
