@@ -7,19 +7,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Checkbox, Field } from '@rakko/react'
 
+import { modelName, nameMatches, t } from '../i18n/index.ts'
 import { onMessage, send, type CatalogModel, type NativeState } from '../settings/bridge.ts'
 import { collectSets, fetchSetImages, fetchSkeletons, type ModelSet } from '../stage/loader.ts'
 import { Stage } from '../stage/engine.ts'
 import './library.css'
-
-const STATE: Record<CatalogModel['state'], string> = {
-  installed: '已下载',
-  outdated: '已下载 · 有更新',
-  available: '',
-  queued: '等待下载',
-  downloading: '下载中…',
-  failed: '下载失败',
-}
 
 export const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`
 
@@ -39,7 +31,7 @@ export function Library({
   const [focus, setFocus] = useState<string | null>(null)
   const list = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return q ? state.catalog.filter((m) => m.name.toLowerCase().includes(q)) : state.catalog
+    return q ? state.catalog.filter((m) => nameMatches(m.name, q)) : state.catalog
   }, [state.catalog, query])
   const current = state.catalog.find((m) => m.id === focus) ?? list[0] ?? null
 
@@ -50,13 +42,14 @@ export function Library({
     onSelected(next)
   }
 
+  const s = t().library
   if (state.auth.phase !== 'signedIn') {
-    return <p className="rs-empty rl-empty">登录后才能浏览和下载模型。</p>
+    return <p className="rs-empty rl-empty">{s.loginRequired}</p>
   }
   if (state.catalog.length === 0) {
     return (
       <p className="rs-empty rl-empty" data-error={state.updates.error ? true : undefined}>
-        {state.updates.error ? `暂时无法获取模型列表：${state.updates.error}` : '正在获取模型列表…'}
+        {state.updates.error ? s.catalogError(state.updates.error) : s.fetching}
       </p>
     )
   }
@@ -65,9 +58,9 @@ export function Library({
     <div className="rl-lib">
       <div className="rl-side">
         <Field.Root className="rl-search">
-          <Field.Control placeholder={`搜索 ${state.catalog.length} 个模型`} value={query} onChange={(e) => setQuery((e.target as HTMLInputElement).value)} />
+          <Field.Control placeholder={s.search(state.catalog.length)} value={query} onChange={(e) => setQuery((e.target as HTMLInputElement).value)} />
         </Field.Root>
-        <ul className="rl-list" role="listbox" aria-label="在线模型">
+        <ul className="rl-list" role="listbox" aria-label={s.listAria}>
           {list.map((m) => (
             <li
               key={m.id}
@@ -79,7 +72,7 @@ export function Library({
             >
               <span className="rl-row__check" onClick={(e) => e.stopPropagation()}>
                 <Checkbox.Root
-                  aria-label={`下载 ${m.name}`}
+                  aria-label={s.downloadAria(modelName(m.name))}
                   checked={!pickable(m) || selected.has(m.id)}
                   disabled={!pickable(m)}
                   onCheckedChange={(v) => toggle(m.id, v === true)}
@@ -87,13 +80,13 @@ export function Library({
                   <Checkbox.Indicator />
                 </Checkbox.Root>
               </span>
-              <span className="rl-row__name">{m.name}</span>
+              <span className="rl-row__name">{modelName(m.name)}</span>
               <span className="rl-row__meta" data-error={m.state === 'failed' || undefined}>
-                {STATE[m.state] || `${m.skins > 0 ? `${m.skins} 套时装 · ` : ''}${mb(m.size)}`}
+                {s.state[m.state] || `${m.skins > 0 ? `${t().common.outfitCount(m.skins)} · ` : ''}${mb(m.size)}`}
               </span>
             </li>
           ))}
-          {list.length === 0 && <li className="rs-empty rl-none">没有匹配「{query}」的模型</li>}
+          {list.length === 0 && <li className="rs-empty rl-none">{s.noMatch(query)}</li>}
         </ul>
       </div>
       <ModelPreview source={current && { kind: 'online', id: current.id, name: current.name, preview: current.preview }} />
@@ -130,7 +123,8 @@ function localSets(name: string, files: string[]) {
 export function ModelPreview({ source, caption, note }: { source: PreviewSource | null; caption?: string; note?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const stage = useRef<Stage | null>(null)
-  const [status, setStatus] = useState<string | null>(null)
+  // 存成函数：切了界面语言，下次渲染就是新语言
+  const [status, setStatus] = useState<(() => string) | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -140,7 +134,7 @@ export function ModelPreview({ source, caption, note }: { source: PreviewSource 
       s.setMode('view')
       stage.current = s
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err))
+      setStatus(() => () => (err instanceof Error ? err.message : String(err)))
       setError(true)
     }
     return () => {
@@ -164,7 +158,7 @@ export function ModelPreview({ source, caption, note }: { source: PreviewSource 
     let alive = true
     const fail = (err: unknown) => {
       if (!alive) return
-      setStatus(`预览失败：${err instanceof Error ? err.message : String(err)}`)
+      setStatus(() => () => t().library.previewFailed(err instanceof Error ? err.message : String(err)))
       setError(true)
     }
     const show = async (base: string, pick: (sets: ModelSet[]) => ModelSet, sets: ModelSet[], pma: boolean) => {
@@ -180,7 +174,7 @@ export function ModelPreview({ source, caption, note }: { source: PreviewSource 
     setError(false)
 
     if (src.kind === 'local') {
-      setStatus('正在载入预览…')
+      setStatus(() => () => t().library.loadingPreview)
       const pick = (sets: ModelSet[]) =>
         sets.find((x) => x.outfit === src.outfit && x.group === src.group) ??
         sets.find((x) => x.outfit === src.outfit && x.group === '基建') ??
@@ -194,16 +188,16 @@ export function ModelPreview({ source, caption, note }: { source: PreviewSource 
     }
 
     if (!src.preview) {
-      setStatus('这个模型没有预览')
+      setStatus(() => () => t().library.noPreview)
       return
     }
-    setStatus('正在载入预览…')
+    setStatus(() => () => t().library.loadingPreview)
     const off = onMessage((m) => {
       if (m.type !== 'preview' || m.id !== src.id) return
       off()
       if (!alive) return
       if (m.error || !m.base || !m.files) {
-        fail(m.error ?? '没有文件')
+        fail(m.error ?? t().library.noFiles)
         return
       }
       const base = m.base
@@ -219,14 +213,16 @@ export function ModelPreview({ source, caption, note }: { source: PreviewSource 
     }
   }, [key])
 
+  const name = source ? modelName(source.name) : ''
+  const statusText = status?.() ?? null
   return (
     <div className="rl-preview">
-      <canvas ref={canvas} className="rl-canvas" aria-label={source ? `${source.name} 预览` : '预览'} />
+      <canvas ref={canvas} className="rl-canvas" aria-label={source ? t().library.previewOf(name) : t().library.preview} />
       <div className="rl-caption">
-        <span className="rl-caption__name">{caption ?? source?.name ?? ''}</span>
-        {(status ?? note) && (
-          <span className="rl-caption__status" data-error={(status && error) || undefined}>
-            {status ?? note}
+        <span className="rl-caption__name">{caption ?? name}</span>
+        {(statusText ?? note) && (
+          <span className="rl-caption__status" data-error={(statusText && error) || undefined}>
+            {statusText ?? note}
           </span>
         )}
       </div>

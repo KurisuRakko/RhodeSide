@@ -2,7 +2,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
+import { setLang } from '../i18n/index.ts'
 import { attackCombo, comboLabel, detectCombos, LOOP_SECONDS } from './combos.ts'
+
+// 按钮名跟界面语言走；node 的默认语言随机器，这里固定简体
+setLang('zh-Hans')
 
 const anims = (o: Record<string, number>) => Object.entries(o).map(([name, duration]) => ({ name, duration }))
 
@@ -46,6 +50,18 @@ test('按钮名', () => {
   assert.equal(comboLabel('Skill_03'), '技能 3')
   assert.equal(comboLabel('Skill'), '技能')
   assert.equal(comboLabel('Combat_A'), 'Combat · A')
+})
+
+test('按钮名跟着界面语言', () => {
+  setLang('en')
+  try {
+    assert.equal(comboLabel('Skill_Down_2'), 'Skill 2 · Down')
+    assert.equal(comboLabel('Start'), 'Entrance')
+    setLang('zh-Hant')
+    assert.equal(comboLabel('Attack'), '攻擊')
+  } finally {
+    setLang('zh-Hans')
+  }
 })
 
 test('基建模型没有连招', () => {

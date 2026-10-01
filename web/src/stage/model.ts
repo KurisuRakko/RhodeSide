@@ -5,6 +5,7 @@
  *   - detectRoles：按常见命名认出待机 / 走 / 互动 / 坐 / 睡
  *   - boundsOf / unite：包围盒工具（骨骼单位，y 向上）
  */
+import { t } from '../i18n/index.ts'
 import { alphaCompanion, atlasPages, atlasPageSizes, dirOf, findFile, skeletonVersion, type ModelSet } from './loader.ts'
 
 export interface Roles {
@@ -84,7 +85,7 @@ async function decode(blob: Blob, premultiplyAlpha: PremultiplyAlpha, size?: Siz
   canvas.width = size.w
   canvas.height = size.h
   const g = canvas.getContext('2d')
-  if (!g) throw new Error('浏览器不支持 2D canvas，没法把缩小的贴图拉回原尺寸')
+  if (!g) throw new Error(t().stage.no2dScale)
   g.imageSmoothingQuality = 'high'
   g.drawImage(resized, 0, 0, size.w, size.h)
   resized.close()
@@ -102,7 +103,7 @@ async function textureSource(blob: Blob, alpha: Blob | undefined, pma: boolean, 
   canvas.width = rgb.width
   canvas.height = rgb.height
   const g = canvas.getContext('2d', { willReadFrequently: true })
-  if (!g) throw new Error('浏览器不支持 2D canvas，没法合并透明通道')
+  if (!g) throw new Error(t().stage.no2dAlpha)
   g.drawImage(rgb, 0, 0)
   const base = g.getImageData(0, 0, canvas.width, canvas.height)
   g.clearRect(0, 0, canvas.width, canvas.height)
@@ -132,7 +133,7 @@ export function unite(a: Box | null, b: Box | null): Box | null {
 export async function loadModel(ctx: any, set: ModelSet, pma: boolean): Promise<LoadedModel> {
   const version = await skeletonVersion(set.skeleton)
   if (version && !version.startsWith('3.8')) {
-    throw new Error(`这是 Spine ${version} 导出的文件，本播放器的运行时是 3.8，读不了`)
+    throw new Error(t().stage.wrongVersion(version))
   }
   const atlasText = await set.atlas.blob.text()
   const dir = dirOf(set.atlas.path)
@@ -145,7 +146,7 @@ export async function loadModel(ctx: any, set: ModelSet, pma: boolean): Promise<
     const fitSize = (sz?: Size) => (sz && sz.w <= max && sz.h <= max ? sz : undefined)
     for (const page of atlasPages(atlasText)) {
       const file = findFile(set.files, dir, page)
-      if (!file) throw new Error(`缺贴图：atlas 里写着 ${page}，但没有这个文件`)
+      if (!file) throw new Error(t().stage.missingPage(page))
       const alpha = alphaCompanion(set.files, dir, page)
       const tex = new spine.webgl.GLTexture(ctx, await textureSource(file.blob, alpha?.blob, pma, fitSize(sizes.get(page))))
       textures.push(tex)
@@ -153,7 +154,7 @@ export async function loadModel(ctx: any, set: ModelSet, pma: boolean): Promise<
     }
     const atlas = new spine.TextureAtlas(atlasText, (page: string) => {
       const tex = byPage.get(page)
-      if (!tex) throw new Error(`缺贴图：${page}`)
+      if (!tex) throw new Error(t().stage.missingTexture(page))
       return tex
     })
     const loader = new spine.AtlasAttachmentLoader(atlas)

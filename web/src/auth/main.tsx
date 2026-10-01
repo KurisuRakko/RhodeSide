@@ -1,10 +1,13 @@
 /**
  * Priestess 登录回跳页（https://rhodeside.rakko.cn/auth/callback）。
  * 把 #login_code / state / auth_error 转给 App：rhodeside://auth/callback?…，并立即从地址栏抹掉。
+ * 这页在用户的浏览器里打开，拿不到 App 的语言设置：跟浏览器语言（i18n 模块默认就是）。
  */
 import { Button } from '@rakko/react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
+import { setTitle, t } from '../i18n/index.ts'
 
 import '../styles/app.css'
 import './callback.css'
@@ -23,26 +26,19 @@ const target = `rhodeside://auth/callback?${out.toString()}`
 const error = out.get('auth_error')
 const hasCode = out.has('login_code')
 
-const MESSAGES: Record<string, string> = {
-  app_access_denied: '当前账号没有 Rhodeside 的使用权限，请联系管理员。',
-  local_user_disabled: '账号已停用。',
-  app_not_found: 'Priestess 中没有 Rhodeside 应用（未注册或已停用）。',
-}
+setTitle((m) => m.auth.windowTitle)
 
 function Callback() {
-  const title = error ? '登录未完成' : hasCode ? '登录成功' : '没有收到登录结果'
-  const detail = error
-    ? (MESSAGES[error] ?? out.get('auth_error_description') ?? error)
-    : hasCode
-      ? '正在返回 Rhodeside。如果没有自动打开，请点击下方按钮（60 秒内有效）。'
-      : '请回到 Rhodeside 重新发起登录。'
+  const s = t().auth
+  const title = error ? s.failedTitle : hasCode ? s.successTitle : s.noResultTitle
+  const detail = error ? (s.errors[error] ?? out.get('auth_error_description') ?? error) : hasCode ? s.returning : s.retry
   return (
     <main className="rs-callback">
       <h1 className="rs-callback__title">{title}</h1>
       <p className="rs-callback__detail" data-error={error ? true : undefined}>
         {detail}
       </p>
-      {(hasCode || error) && <Button onClick={() => (location.href = target)}>打开 Rhodeside</Button>}
+      {(hasCode || error) && <Button onClick={() => (location.href = target)}>{s.open}</Button>}
     </main>
   )
 }

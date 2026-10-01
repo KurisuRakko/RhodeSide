@@ -96,7 +96,7 @@ final class LogUploader {
 
     @MainActor
     private func upload(_ reason: String) async throws {
-        guard let base = updater.baseURL else { throw Oops("更新地址不对") }
+        guard let base = updater.baseURL else { throw Oops(tr("更新地址不对", "更新地址不正確", "Invalid update URL")) }
         let reports = Self.crashReports(except: Set(state.reported ?? []))
         // 崩溃报告的摘要先写进日志（跟这次的日志一起传上去，本地 tail 也看得到）
         for file in reports where !(state.summarized ?? []).contains(file.lastPathComponent) {
@@ -179,7 +179,8 @@ final class LogUploader {
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
             let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-            let msg = "服务器返回 HTTP \(status)\(((json?["error"] as? [String: Any])?["message"] as? String).map { "：\($0)" } ?? "")"
+            let detail = ((json?["error"] as? [String: Any])?["message"] as? String).map { tr("：\($0)", "：\($0)", ": \($0)") } ?? ""
+            let msg = tr("服务器返回 HTTP \(status)", "伺服器傳回 HTTP \(status)", "Server returned HTTP \(status)") + detail
             if (400..<500).contains(status), status != 429 { throw Rejected(errorDescription: msg) }
             throw Oops(msg)
         }

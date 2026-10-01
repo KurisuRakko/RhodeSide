@@ -9,6 +9,10 @@
  * 目录布局和 PRTS 一样：<时装文件夹>/<front|back|build>/<文件>，前端 loader 直接认。
  * 已下载且大小对得上的文件不重下；新干员上线后重跑一遍就行。只收 Spine 3.8 的骨骼。
  * 不带 --only 时，除了该星级全员，models.json 里其他 source: 'prts' 的干员（用 --only 单独加进来的，比如五星谜图）也一起更新。
+ *
+ * 最后给 models.json 里所有模型写英文名到 models-private/names.json（publish.mjs 放进目录，界面按语言显示；繁体由发布时简转繁）：
+ *   { "<中文名>": { "en": "Exusiai", "skins": { "<时装 key>": "Midnight Delivery" } } }
+ * 干员英文名来自干员一览的 data-en；时装英文名来自国际服游戏数据的 skin_table（国服独有的时装没有，界面上回退中文）。
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
@@ -19,6 +23,8 @@ const ROOT = resolve(HERE, '../..')
 const OUT = join(ROOT, 'models-private')
 const LIST = join(ROOT, 'macos/models.json')
 const INDEX = join(OUT, 'prts-index.json')
+const NAMES = join(OUT, 'names.json')
+const EN_SKINS = 'https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData_YoStar/main/en_US/gamedata/excel/skin_table.json'
 const WIKI = 'https://prts.wiki'
 const ASSETS = 'https://torappu.prts.wiki/assets/char_spine'
 
@@ -50,15 +56,50 @@ async function get(url, kind = 'text') {
 const unescape = (s) =>
   s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&(amp|quot|lt|gt|#039);/g, (m) => ({ '&amp;': '&', '&quot;': '"', '&lt;': '<', '&gt;': '>', '&#039;': "'" })[m])
 
-async function operators() {
+/** 干员一览：全部干员的中文名、英文名、星级（0 起算） */
+async function roster() {
   const html = await get(`${WIKI}/w/${encodeURIComponent('干员一览')}`)
   const out = []
-  // 每个干员一个带 data-rarity、data-zh… 的标签
+  // 每个干员一个带 data-rarity、data-zh、data-en… 的标签
   for (const m of html.matchAll(/<[a-z]+ ([^>]*data-rarity="[^"]*"[^>]*)>/g)) {
     const a = Object.fromEntries([...m[1].matchAll(/data-([a-z]+)="([^"]*)"/g)].map((x) => [x[1], unescape(x[2])]))
-    if (a.zh && Number(a.rarity) + 1 === rarity && !out.includes(a.zh)) out.push(a.zh)
+    if (a.zh && !out.some((o) => o.zh === a.zh)) out.push({ zh: a.zh, en: a.en || null, rarity: Number(a.rarity) + 1 })
   }
   if (out.length === 0) throw new Error('干员一览里一个都没找到（页面结构变了？）')
+  return out
+}
+
+/**
+ * 写 names.json：拉不到的部分（PRTS / GitHub 出错）沿用上次的，不会把已有译名清掉。
+ * 时装 key 是骨骼文件名去掉 build_（char_103_angel_sale_8），skin_table 的 buildingId 是 char_103_angel_sale#8；
+ * 默认时装的 key 没有编号，界面按「默认」统一翻译，这里不用管。
+ */
+async function writeNames(ops, list) {
+  const old = existsSync(NAMES) ? JSON.parse(readFileSync(NAMES, 'utf8')) : {}
+  let skinsEn = null
+  try {
+    const table = JSON.parse(await get(EN_SKINS))
+    skinsEn = {}
+    for (const s of Object.values(table.charSkins ?? {})) if (s.buildingId && s.displaySkin?.skinName) skinsEn[s.buildingId] = s.displaySkin.skinName
+  } catch (e) {
+    console.log(`[prts] 国际服时装表拉不到，时装英文名沿用上次的：${e.message}`)
+  }
+  const out = {}
+  for (const { name } of list) {
+    const prev = old[name] ?? {}
+    const en = ops?.find((o) => o.zh === name)?.en ?? prev.en ?? null
+    let skins = prev.skins ?? {}
+    const file = join(OUT, name, 'skins.json')
+    if (skinsEn && existsSync(file)) {
+      skins = {}
+      for (const key of Object.keys(JSON.parse(readFileSync(file, 'utf8')))) {
+        const n = skinsEn[key.replace(/_(\d+)$/, '#$1')]
+        if (n) skins[key] = n
+      }
+    }
+    if (en || Object.keys(skins).length) out[name] = { ...(en ? { en } : {}), ...(Object.keys(skins).length ? { skins } : {}) }
+  }
+  if (JSON.stringify(out) !== JSON.stringify(old)) writeJSON(NAMES, out)
   return out
 }
 
@@ -226,7 +267,15 @@ async function fetchModel(name, id) {
 
 const index = existsSync(INDEX) ? JSON.parse(readFileSync(INDEX, 'utf8')) : {}
 const list = JSON.parse(readFileSync(LIST, 'utf8'))
-const names = only.length ? only : await operators()
+let ops = null
+try {
+  ops = await roster()
+} catch (e) {
+  // 只是 --only 时名单不靠它，英文名沿用上次的
+  if (!only.length) throw e
+  console.log(`[prts] 干员一览拉不到：${e.message}`)
+}
+const names = only.length ? only : ops.filter((o) => o.rarity === rarity).map((o) => o.zh)
 if (!only.length) for (const m of list) if (m.source === 'prts' && !names.includes(m.name)) names.push(m.name)
 console.log(only.length ? `[prts] 指定 ${names.length} 名` : `[prts] ${rarity} 星 + 单独加入的 共 ${names.length} 名`)
 await charIds(names, index)
@@ -265,3 +314,9 @@ for (const name of names) {
   }
 }
 if (skipped.length) console.log(`[prts] 跳过 ${skipped.length} 个：\n  ${skipped.join('\n  ')}`)
+if (!dry) {
+  const n = await writeNames(ops, list)
+  const withEn = Object.values(n).filter((x) => x.en).length
+  const skins = Object.values(n).reduce((k, x) => k + Object.keys(x.skins ?? {}).length, 0)
+  console.log(`[prts] 译名：${withEn}/${list.length} 个干员有英文名，${skins} 套时装有英文名`)
+}

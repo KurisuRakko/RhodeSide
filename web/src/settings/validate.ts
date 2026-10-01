@@ -2,8 +2,10 @@
  * 导入检查：用 stage/ 的 loader 把每套模型真载一遍（骨骼版本、图集、贴图都要对得上），
  * 全过了才让原生层把文件夹挪进 models/。
  */
+import { t } from '../i18n/index.ts'
 import { collectSets, fetchSetImages, fetchSkeletons } from '../stage/loader.ts'
 import { loadModel } from '../stage/model.ts'
+import { groupLabel } from './skins.ts'
 
 export type Verdict = { ok: true; sets: { outfit: string; group: string }[] } | { ok: false; reason: string }
 
@@ -12,7 +14,7 @@ export async function validateImport(base: string, files: string[]): Promise<Ver
   canvas.width = 1
   canvas.height = 1
   const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true })
-  if (!gl) return { ok: false, reason: '这个 WebView 不支持 WebGL，没法检查模型' }
+  if (!gl) return { ok: false, reason: t().stage.noWebGLCheck }
   try {
     const sets = await collectSets(await fetchSkeletons(base, files))
     const ctx = new spine.webgl.ManagedWebGLRenderingContext(gl)
@@ -21,7 +23,7 @@ export async function validateImport(base: string, files: string[]): Promise<Ver
         const m = await loadModel(ctx, await fetchSetImages(base, set), false)
         for (const t of m.textures) t.dispose()
       } catch (err) {
-        return { ok: false, reason: `${set.outfit} · ${set.group}：${err instanceof Error ? err.message : String(err)}` }
+        return { ok: false, reason: t().stage.setFailed(`${set.outfit} · ${groupLabel(set.group)}`, err instanceof Error ? err.message : String(err)) }
       }
     }
     return { ok: true, sets: sets.map((s) => ({ outfit: s.outfit, group: s.group })) }

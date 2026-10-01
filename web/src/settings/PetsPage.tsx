@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Field, FilterChip } from '@rakko/react'
 
+import { modelName, t } from '../i18n/index.ts'
+import { comboLabel } from '../stage/combos.ts'
 import * as I from '../ui/icons.tsx'
 import { native, send, type Activity, type Behavior, type CatalogModel, type ModelInfo, type NativeState, type PetConfig, type PetSummary, type Team } from './bridge.ts'
 import { defaultGroup, ModelPicker } from './ModelPicker.tsx'
@@ -15,48 +17,45 @@ import { groupLabel, useSkinNames } from './skins.ts'
 import { Choice, Group, nearest, Pick, Row, SwitchRow, useConfirm } from './ui.tsx'
 import { modelSets } from './validate.ts'
 
-const HEIGHTS: [string, string][] = [
-  ['90', '小'],
-  ['120', '中'],
-  ['160', '大'],
-  ['210', '特大'],
-]
+const heights = (): [string, string][] => {
+  const h = t().pets.heights
+  return [
+    ['90', h.small],
+    ['120', h.medium],
+    ['160', h.large],
+    ['210', h.huge],
+  ]
+}
 const OPACITY: [string, string][] = [
   ['1', '100%'],
   ['0.75', '75%'],
   ['0.5', '50%'],
   ['0.3', '30%'],
 ]
-const STRIDES: [string, string][] = [
-  ['0.7', '慢'],
-  ['1', '正常'],
-  ['1.4', '快'],
-]
-const ACTIVITIES: [Activity, string][] = [
-  ['auto', '自由活动'],
-  ['walk', '一直行走'],
-  ['stay', '原地停留'],
-]
-const ACTIONS: [Behavior, string, keyof PetSummary['can'] | null][] = [
-  ['interact', '互动', 'interact'],
-  ['sit', '坐下', 'sit'],
-  ['sleep', '睡眠', 'sleep'],
-  ['idle', '站立', null],
-]
-const BEHAVIOR: Record<string, string> = {
-  idle: '站着',
-  walk: '在走路',
-  sit: '坐着',
-  sleep: '在睡觉',
-  interact: '在做动作',
-  held: '被拎着',
-  fall: '在下落',
+const strides = (): [string, string][] => {
+  const s = t().pets.strides
+  return [
+    ['0.7', s.slow],
+    ['1', s.normal],
+    ['1.4', s.fast],
+  ]
 }
-const DOWNLOAD: Partial<Record<CatalogModel['state'], string>> = {
-  available: '还没下载',
-  queued: '等待下载…',
-  downloading: '正在下载…',
-  failed: '下载失败',
+const activities = (): [Activity, string][] => {
+  const a = t().pets.activities
+  return [
+    ['auto', a.auto],
+    ['walk', a.walk],
+    ['stay', a.stay],
+  ]
+}
+const actions = (): [Behavior, string, keyof PetSummary['can'] | null][] => {
+  const a = t().pets.actions
+  return [
+    ['interact', a.interact, 'interact'],
+    ['sit', a.sit, 'sit'],
+    ['sleep', a.sleep, 'sleep'],
+    ['idle', a.idle, null],
+  ]
 }
 
 export function PetsPage({ state }: { state: NativeState }) {
@@ -80,32 +79,33 @@ export function PetsPage({ state }: { state: NativeState }) {
   const petId = pet?.id
   useEffect(() => setPicking(false), [petId])
 
+  const s = t().pets
   if (pet && picking) return <ModelPicker key={pet.id} index={index} pet={pet} summary={summary} state={state} onClose={() => setPicking(false)} />
 
   return (
     <div className="rs-page">
       <header className="rs-page__head">
-        <h1 className="rs-title">桌宠</h1>
+        <h1 className="rs-title">{s.title}</h1>
       </header>
 
       {config.teams && <Teams teams={config.teams} pets={pets} />}
 
-      <div className="rs-pets" role="group" aria-label="选择桌宠">
+      <div className="rs-pets" role="group" aria-label={s.choosePet}>
         {pets.map((p, i) => (
           <FilterChip key={p.id} pressed={p.id === pet?.id} onPressedChange={() => setSelected(p.id)}>
-            {i + 1} · {p.model}
+            {i + 1} · {modelName(p.model)}
           </FilterChip>
         ))}
         <Button variant="ghost" disabled={full} onClick={() => send({ type: 'addPet' })}>
-          <I.IconPlus /> 添加
+          <I.IconPlus /> {t().common.add}
         </Button>
-        {full && <span className="rs-hint">最多 {state.maxPets} 只</span>}
+        {full && <span className="rs-hint">{s.maxPets(state.maxPets)}</span>}
       </div>
 
       {pet ? (
         <PetEditor key={pet.id} pet={pet} summary={summary} models={state.models} catalog={state.catalog} onPick={() => setPicking(true)} />
       ) : (
-        <p className="rs-empty">还没有桌宠，点「添加」。</p>
+        <p className="rs-empty">{s.empty}</p>
       )}
     </div>
   )
@@ -150,21 +150,23 @@ function PetEditor({
   const outfit = pet.outfit ?? current?.outfit ?? sets[0]?.outfit ?? null
   const group = pet.group ?? current?.group ?? defaultGroup(sets.filter((s) => s.outfit === outfit).map((s) => s.group))
 
+  const s = t().pets
+  const c = t().common
   // 模型那一行的小字：没下载好就显示下载状态，否则是时装 · 形态
-  const pending = model ? undefined : catalog.find((c) => c.name === pet.model)
+  const pending = model ? undefined : catalog.find((x) => x.name === pet.model)
   const modelHint = model
     ? [outfit && skin(outfit), group && groupLabel(group)].filter(Boolean).join(' · ')
     : pending
-      ? (DOWNLOAD[pending.state] ?? '正在安装…')
-      : '找不到这个模型'
+      ? (s.download[pending.state] ?? s.installing)
+      : s.notFound
 
   const status = summary?.error
     ? summary.error
     : current
-      ? `现在${BEHAVIOR[summary?.behavior ?? ''] ?? summary?.behavior ?? ''}`
+      ? s.now(s.behavior[summary?.behavior ?? ''] ?? summary?.behavior ?? '')
       : native
-        ? '加载中…'
-        : '浏览器预览'
+        ? s.loading
+        : c.browserPreview
 
   return (
     <>
@@ -172,29 +174,29 @@ function PetEditor({
         {status}
       </p>
 
-      <Group title="模型">
-        <Row label={pet.model} hint={modelHint} error={!model && (!pending || pending.state === 'failed')}>
-          <Button onClick={onPick}>更换…</Button>
+      <Group title={s.model}>
+        <Row label={modelName(pet.model)} hint={modelHint} error={!model && (!pending || pending.state === 'failed')}>
+          <Button onClick={onPick}>{s.change}</Button>
         </Row>
       </Group>
 
-      <Group title="显示">
-        <Row label="大小">
-          <Choice aria="大小" value={nearest(pet.height, HEIGHTS)} options={HEIGHTS} onChange={(v) => patch({ height: Number(v) })} />
+      <Group title={s.display}>
+        <Row label={s.size}>
+          <Choice aria={s.size} value={nearest(pet.height, heights())} options={heights()} onChange={(v) => patch({ height: Number(v) })} />
         </Row>
-        <Row label="不透明度">
-          <Choice aria="不透明度" value={nearest(pet.opacity, OPACITY)} options={OPACITY} onChange={(v) => patch({ opacity: Number(v) })} />
+        <Row label={s.opacity}>
+          <Choice aria={s.opacity} value={nearest(pet.opacity, OPACITY)} options={OPACITY} onChange={(v) => patch({ opacity: Number(v) })} />
         </Row>
-        <SwitchRow label="悬停变淡" hint="鼠标移上去时变淡、点击穿透；按住 ⌥ 可以拖动" checked={pet.hoverFade} onChange={(v) => patch({ hoverFade: v })} />
-        <SwitchRow label="预乘透明度（PMA）" hint="边缘有黑边或白边时切换" checked={pet.pma} onChange={(v) => patch({ pma: v })} />
+        <SwitchRow label={s.hoverFade} hint={s.hoverFadeHint} checked={pet.hoverFade} onChange={(v) => patch({ hoverFade: v })} />
+        <SwitchRow label={s.pma} hint={s.pmaHint} checked={pet.pma} onChange={(v) => patch({ pma: v })} />
       </Group>
 
       {summary?.battle ? <BattleControls pet={pet} summary={summary} /> : <BaseControls pet={pet} summary={summary} />}
 
       <footer className="rs-page__foot">
-        <Button onClick={() => send({ type: 'summonPet', id: pet.id })}>召回</Button>
+        <Button onClick={() => send({ type: 'summonPet', id: pet.id })}>{s.summon}</Button>
         <Button variant="danger" onClick={() => confirm() && send({ type: 'removePet', id: pet.id })}>
-          <I.IconTrash /> {armed ? '确认移除' : '移除'}
+          <I.IconTrash /> {armed ? c.confirmRemove : c.remove}
         </Button>
       </footer>
     </>
@@ -205,22 +207,20 @@ function PetEditor({
 function BaseControls({ pet, summary }: { pet: PetConfig; summary?: PetSummary }) {
   const canWalk = summary?.can.move !== false
   const patch = (p: Partial<Record<keyof PetConfig, unknown>>) => send({ type: 'updatePet', id: pet.id, patch: p })
+  const s = t().pets
   return (
     <>
-      <Group title="活动">
-        <Row label="方式" hint={canWalk ? undefined : '这个模型没有行走动画'}>
-          <Choice aria="活动方式" value={pet.activity} options={ACTIVITIES} onChange={(v) => patch({ activity: v as Activity })} />
+      <Group title={s.activity}>
+        <Row label={s.mode} hint={canWalk ? undefined : s.noWalk}>
+          <Choice aria={s.activityAria} value={pet.activity} options={activities()} onChange={(v) => patch({ activity: v as Activity })} />
         </Row>
-        <Row label="步速" hint="脚步和移动对不上时调整">
-          <Choice aria="步速" value={nearest(pet.stride, STRIDES)} options={STRIDES} onChange={(v) => patch({ stride: Number(v) })} />
+        <Row label={s.stride} hint={s.strideHint}>
+          <Choice aria={s.stride} value={nearest(pet.stride, strides())} options={strides()} onChange={(v) => patch({ stride: Number(v) })} />
         </Row>
       </Group>
-      <Group title="立即动作">
-        <Row
-          label="做一个动作"
-          hint={!summary?.standing ? '站稳以后才能做动作' : pet.activity === 'stay' ? '原地停留时，坐下和睡眠会一直保持' : undefined}
-        >
-          {ACTIONS.map(([b, text, need]) => (
+      <Group title={s.actNow}>
+        <Row label={s.doAction} hint={!summary?.standing ? s.notStanding : pet.activity === 'stay' ? s.stayHint : undefined}>
+          {actions().map(([b, text, need]) => (
             <Button
               key={b}
               disabled={!summary?.standing || (need !== null && !summary.can[need])}
@@ -241,25 +241,27 @@ function BattleControls({ pet, summary }: { pet: PetConfig; summary: PetSummary 
   const animations = summary.animations ?? []
   const combos = summary.combos ?? []
   const options = useMemo(() => animations.map((a): [string, string] => [a, a]), [animations])
+  const s = t().pets
   return (
     <>
-      <Group title="活动">
-        <Row label="循环动作" hint="战斗形态不会走动；点一下桌宠会播攻击">
-          <Pick label="循环动作" value={summary.pose ?? null} options={options} onChange={(v) => send({ type: 'updatePet', id: pet.id, patch: { pose: v } })} />
+      <Group title={s.activity}>
+        <Row label={s.pose} hint={s.poseHint}>
+          <Pick label={s.pose} value={summary.pose ?? null} options={options} onChange={(v) => send({ type: 'updatePet', id: pet.id, patch: { pose: v } })} />
         </Row>
       </Group>
-      <Group title="立即动作">
+      <Group title={s.actNow}>
         {combos.length > 0 ? (
-          <Row label="连招" hint={summary.standing ? '按顺序播一遍，播完回到循环动作' : '站稳以后才能做动作'}>
+          <Row label={s.combos} hint={summary.standing ? s.combosHint : s.notStanding}>
             {combos.map((c) => (
               <Button key={c.id} disabled={!summary.standing} onClick={() => send({ type: 'playCombo', id: pet.id, combo: c.id })}>
-                {c.label}
+                {/* 按 id 现算：原生层带回来的 label 是桌宠页用它当时的语言算的 */}
+                {comboLabel(c.id)}
               </Button>
             ))}
             <TurnButton pet={pet} summary={summary} />
           </Row>
         ) : (
-          <Row label="转身" hint={summary.standing ? undefined : '站稳以后才能转身'}>
+          <Row label={s.turn} hint={summary.standing ? undefined : s.turnNotStanding}>
             <TurnButton pet={pet} summary={summary} />
           </Row>
         )}
@@ -272,7 +274,7 @@ function BattleControls({ pet, summary }: { pet: PetConfig; summary: PetSummary 
 function TurnButton({ pet, summary }: { pet: PetConfig; summary?: PetSummary }) {
   return (
     <Button disabled={!summary?.standing} onClick={() => send({ type: 'turn', id: pet.id })}>
-      转身
+      {t().pets.turn}
     </Button>
   )
 }
@@ -291,8 +293,9 @@ function Teams({ teams, pets }: { teams: Team[]; pets: PetConfig[] }) {
     send({ type: 'saveTeam', name: draft.trim() })
     setDraft('')
   }
+  const s = t().pets
   return (
-    <Group title="套组">
+    <Group title={s.teams}>
       {teams.map((t) => (
         <TeamRow key={t.id} team={t} current={t === current} changed={t === current && !unchanged} replacing={pets.length > 0 && !unchanged} />
       ))}
@@ -304,17 +307,15 @@ function Teams({ teams, pets }: { teams: Team[]; pets: PetConfig[] }) {
         }}
       >
         <div className="rs-line__text">
-          <div className="rs-line__label">存为新套组</div>
-          <div className="rs-line__hint">
-            {pets.length > 0 ? `把桌面上现在的 ${pets.length} 只存成一组；召出时替换全部桌宠，同组的会结伴走、互相找、一起反应` : '桌面上还没有桌宠'}
-          </div>
+          <div className="rs-line__label">{s.saveTeam}</div>
+          <div className="rs-line__hint">{pets.length > 0 ? s.saveTeamHint(pets.length) : s.noPetsOnDesk}</div>
         </div>
         <div className="rs-line__control">
           <Field.Root>
-            <Field.Control placeholder={`套组 ${teams.length + 1}`} value={draft} onChange={(e) => setDraft((e.target as HTMLInputElement).value)} />
+            <Field.Control placeholder={s.teamPlaceholder(teams.length + 1)} value={draft} onChange={(e) => setDraft((e.target as HTMLInputElement).value)} />
           </Field.Root>
           <Button type="submit" disabled={pets.length === 0}>
-            保存
+            {t().common.save}
           </Button>
         </div>
       </form>
@@ -336,7 +337,9 @@ function TeamRow({ team, current, changed, replacing }: { team: Team; current: b
   const [delArmed, confirmDelete] = useConfirm()
   // 桌面上有没存进套组的桌宠或改动时，召出会把它们换掉：点两次
   const [sumArmed, confirmSummon] = useConfirm()
-  const members = team.members.map((m) => m.model).join('、') || '（空）'
+  const s = t().pets
+  const c = t().common
+  const members = c.list(team.members.map((m) => modelName(m.model))) || s.emptyTeam
 
   if (renaming) {
     return (
@@ -349,18 +352,18 @@ function TeamRow({ team, current, changed, replacing }: { team: Team; current: b
         }}
       >
         <div className="rs-line__text">
-          <div className="rs-line__label">改名</div>
+          <div className="rs-line__label">{c.rename}</div>
           <div className="rs-line__hint">{members}</div>
         </div>
         <div className="rs-line__control">
           <Field.Root>
-            <Field.Control aria-label="套组名字" autoFocus value={name} onChange={(e) => setName((e.target as HTMLInputElement).value)} />
+            <Field.Control aria-label={s.teamName} autoFocus value={name} onChange={(e) => setName((e.target as HTMLInputElement).value)} />
           </Field.Root>
           <Button type="submit" disabled={!name.trim()}>
-            确定
+            {c.ok}
           </Button>
           <Button variant="ghost" onClick={() => setRenaming(false)}>
-            取消
+            {c.cancel}
           </Button>
         </div>
       </form>
@@ -368,11 +371,11 @@ function TeamRow({ team, current, changed, replacing }: { team: Team; current: b
   }
 
   return (
-    <Row label={team.name} hint={current ? `桌面上是这一组${changed ? '（有改动）' : ''} · ${members}` : members}>
+    <Row label={team.name} hint={current ? s.onDesk(changed, members) : members}>
       {changed ? (
-        <Button onClick={() => send({ type: 'overwriteTeam', id: team.id })}>保存修改</Button>
+        <Button onClick={() => send({ type: 'overwriteTeam', id: team.id })}>{s.saveChanges}</Button>
       ) : (
-        <Button onClick={() => (!replacing || confirmSummon()) && send({ type: 'summonTeam', id: team.id })}>{sumArmed ? '替换桌面上的？' : current ? '重新召出' : '召出'}</Button>
+        <Button onClick={() => (!replacing || confirmSummon()) && send({ type: 'summonTeam', id: team.id })}>{sumArmed ? s.replaceConfirm : current ? s.resummon : s.summonTeam}</Button>
       )}
       <Button
         variant="ghost"
@@ -381,10 +384,10 @@ function TeamRow({ team, current, changed, replacing }: { team: Team; current: b
           setRenaming(true)
         }}
       >
-        改名
+        {c.rename}
       </Button>
       <Button variant="danger" onClick={() => confirmDelete() && send({ type: 'deleteTeam', id: team.id })}>
-        <I.IconTrash /> {delArmed ? '确认删除' : '删除'}
+        <I.IconTrash /> {delArmed ? c.confirmDelete : c.delete}
       </Button>
     </Row>
   )

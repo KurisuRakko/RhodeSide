@@ -50,6 +50,8 @@ export interface AppConfig {
   voice?: { enabled: boolean; volume: number }
   /** 老版本 App 没有 */
   teams?: Team[]
+  /** 界面语言：'system' | 'zh-Hans' | 'zh-Hant' | 'en'；老版本 App 没有 */
+  language?: string
 }
 
 export interface UpdateStatus {
@@ -88,6 +90,10 @@ export interface CatalogModel {
   preview: boolean
   state: 'installed' | 'outdated' | 'available' | 'queued' | 'downloading' | 'failed'
   error: string | null
+  /** 干员名译名（en / zh-Hant）；老版本 App、老目录没有 */
+  names?: Partial<Record<'en' | 'zh-Hant', string>>
+  /** 时装 key → 译名 */
+  outfits?: Record<string, Partial<Record<'en' | 'zh-Hant', string>>>
 }
 
 export interface ModelInfo {
@@ -131,6 +137,8 @@ export interface NativeState {
   catalog: CatalogModel[]
   /** 日志自动上传；老版本 App 没有 */
   logUpload?: LogUploadStatus
+  /** 系统首选语言（Locale.preferredLanguages）；老版本 App 没有 */
+  systemLanguages?: string[]
 }
 
 export interface StagedImport {
@@ -243,6 +251,7 @@ async function fakeState(): Promise<NativeState> {
       onboarded: false,
       voice: { enabled: true, volume: 0.7 },
       teams: [],
+      language: 'system',
     },
     models: list.map((e) => ({ name: e.name, builtin: e.name === '荒芜拉普兰德', files: e.files })),
     pets: [{ id: 'preview-1', behavior: 'idle', standing: true, can: PREVIEW_CAN, loaded: null, error: null }],
@@ -261,13 +270,23 @@ async function fakeState(): Promise<NativeState> {
     appBuild: 0,
     catalog: [],
     logUpload: { lastUpload: null, error: null, busy: false },
+    systemLanguages: [...navigator.languages],
   }
   return fake
 }
 
+// 前几个带译名，看英文 / 繁体界面用
+const MOCK_NAMES: Record<string, CatalogModel['names']> = {
+  荒芜拉普兰德: { en: 'Lappland the Decadenza', 'zh-Hant': '荒蕪拉普蘭德' },
+  能天使: { en: 'Exusiai', 'zh-Hant': '能天使' },
+  艾雅法拉: { en: 'Eyjafjalla', 'zh-Hant': '艾雅法拉' },
+  史尔特尔: { en: 'Surtr', 'zh-Hant': '史爾特爾' },
+}
 const MOCK_CATALOG: CatalogModel[] = ['荒芜拉普兰德', '能天使', '艾雅法拉', '史尔特尔', '令', '夕', '年', '棘刺', '凯尔希', '银灰'].map((name, i) => ({
   id: `mock-${i}`,
   name,
+  names: MOCK_NAMES[name],
+  outfits: name === '荒芜拉普兰德' ? { char_1038_whitw2: { en: 'Default', 'zh-Hant': '預設' } } : undefined,
   size: 2_000_000 + i * 310_000,
   default: i === 0,
   skins: 1 + (i % 4),

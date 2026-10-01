@@ -32,13 +32,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { _ in
             Log.info("系统要关机 / 重启 / 注销")
         }
-        setupMainMenu()
-        setupStatusItem()
         setupSignals()
         activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep], reason: "桌宠动画")
         LoginItem.refreshIfEnabled()
+        // 先读配置（界面语言在里面），再建菜单
         let m = PetManager()
         manager = m
+        setupMainMenu()
+        setupStatusItem()
+        m.onLanguageChange = { [weak self] in
+            self?.setupMainMenu()
+            self?.buildStatusMenu()
+        }
         m.start()
         if !m.config.onboarded { m.openWelcome() }
         // 自更新的交接脚本在等这个信号：活过 8 秒算启动成功
@@ -71,30 +76,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /* ---------------------------------------------------------------- 菜单 */
 
-    /// 菜单栏程序也要有主菜单，否则设置窗口里 ⌘C / ⌘V / ⌘W 不好使
+    /// 菜单栏程序也要有主菜单，否则设置窗口里 ⌘C / ⌘V / ⌘W 不好使。界面语言变了会重建
     private func setupMainMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "退出 Rhodeside", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: quitTitle, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
         let editItem = NSMenuItem()
-        let edit = NSMenu(title: "编辑")
-        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
+        let edit = NSMenu(title: tr("编辑", "編輯", "Edit"))
+        edit.addItem(withTitle: tr("撤销", "還原", "Undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: tr("重做", "重做", "Redo"), action: Selector(("redo:")), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: tr("剪切", "剪下", "Cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: tr("拷贝", "拷貝", "Copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: tr("粘贴", "貼上", "Paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: tr("全选", "全選", "Select All"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
 
         let windowItem = NSMenuItem()
-        let win = NSMenu(title: "窗口")
-        win.addItem(withTitle: "关闭", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let win = NSMenu(title: tr("窗口", "視窗", "Window"))
+        win.addItem(withTitle: tr("关闭", "關閉", "Close"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         windowItem.submenu = win
         main.addItem(windowItem)
         NSApp.mainMenu = main
@@ -105,23 +110,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let image = NSImage(systemSymbolName: "pawprint.fill", accessibilityDescription: "Rhodeside")
         image?.isTemplate = true
         item.button?.image = image
-        item.button?.toolTip = "Rhodeside 桌宠"
+        statusItem = item
+        buildStatusMenu()
+    }
 
-        // 菜单只留常用的：其余都在主窗口里（侧栏：桌宠 / 模型库 / 设置；故障排查在设置页）
+    /// 状态栏菜单只留常用的：其余都在主窗口里（侧栏：桌宠 / 模型库 / 设置；故障排查在设置页）。界面语言变了会重建
+    private func buildStatusMenu() {
+        guard let item = statusItem else { return }
+        item.button?.toolTip = tr("Rhodeside 桌宠", "Rhodeside 桌寵", "Rhodeside desktop pets")
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(action("打开 Rhodeside…", #selector(openSettings), key: ","))
+        menu.addItem(action(tr("打开 Rhodeside…", "開啟 Rhodeside…", "Open Rhodeside…"), #selector(openSettings), key: ","))
         menu.addItem(.separator())
-        let hide = action("隐藏桌宠", #selector(toggleHidden))
+        let hide = action(hideTitle, #selector(toggleHidden))
         hideItem = hide
         menu.addItem(hide)
-        menu.addItem(action("召回全部", #selector(summonAll)))
+        menu.addItem(action(tr("召回全部", "召回全部", "Recall All"), #selector(summonAll)))
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "退出 Rhodeside", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: quitTitle, action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
         item.menu = menu
-        statusItem = item
+    }
+
+    private var quitTitle: String { tr("退出 Rhodeside", "結束 Rhodeside", "Quit Rhodeside") }
+    private var hideTitle: String {
+        manager?.userHidden == true ? tr("显示桌宠", "顯示桌寵", "Show Pets") : tr("隐藏桌宠", "隱藏桌寵", "Hide Pets")
     }
 
     private func action(_ title: String, _ sel: Selector, key: String = "") -> NSMenuItem {
@@ -131,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        hideItem?.title = manager?.userHidden == true ? "显示桌宠" : "隐藏桌宠"
+        hideItem?.title = hideTitle
     }
 
     @objc private func openSettings() { manager?.openSettings() }

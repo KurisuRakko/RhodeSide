@@ -19,6 +19,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
     public var voice: VoiceConfig
     /// 套组：存起来的一组桌宠（比如一对 CP），一键召出替换桌面上的全部桌宠
     public var teams: [Team]
+    /// 界面语言："system"（跟随系统）/ "zh-Hans" / "zh-Hant" / "en"，见 `UILanguage`
+    public var language: String
 
     /// 默认模型（不再打进 App：登录后从服务器下载）
     public static let builtinModel = "荒芜拉普兰德"
@@ -40,7 +42,8 @@ public struct AppConfig: Codable, Equatable, Sendable {
         auth: AuthConfig = AuthConfig(),
         onboarded: Bool = false,
         voice: VoiceConfig = VoiceConfig(),
-        teams: [Team] = []
+        teams: [Team] = [],
+        language: String = UILanguage.system
     ) {
         self.version = version
         self.pets = pets
@@ -52,6 +55,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         self.onboarded = onboarded
         self.voice = voice
         self.teams = teams
+        self.language = language
     }
 
     public init(from decoder: Decoder) throws {
@@ -69,6 +73,7 @@ public struct AppConfig: Codable, Equatable, Sendable {
         voice = try c.decodeIfPresent(VoiceConfig.self, forKey: .voice) ?? d.voice
         // 手改坏了套组不连累整份配置（桌宠还在），套组先当没有
         teams = (try? c.decodeIfPresent([Team].self, forKey: .teams)) ?? d.teams
+        language = (try? c.decodeIfPresent(String.self, forKey: .language)) ?? d.language
     }
 
     public enum LoadResult: Equatable, Sendable {

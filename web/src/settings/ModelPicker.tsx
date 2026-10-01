@@ -5,24 +5,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Field } from '@rakko/react'
 
+import { modelName, nameMatches, t } from '../i18n/index.ts'
 import * as I from '../ui/icons.tsx'
 import { mb, ModelPreview, type PreviewSource } from '../library/Library.tsx'
-import { send, type CatalogModel, type ModelInfo, type NativeState, type PetConfig, type PetSummary } from './bridge.ts'
+import { send, type ModelInfo, type NativeState, type PetConfig, type PetSummary } from './bridge.ts'
 import { groupLabel, useSkinNames } from './skins.ts'
 import { Choice, Pick, Row } from './ui.tsx'
 import { modelSets } from './validate.ts'
 
 type Focus = { kind: 'local'; name: string } | { kind: 'online'; id: string }
 type OutfitSet = { outfit: string; group: string }
-
-const ONLINE_STATE: Record<CatalogModel['state'], string> = {
-  installed: '已下载',
-  outdated: '已下载',
-  available: '',
-  queued: '等待下载',
-  downloading: '下载中…',
-  failed: '下载失败',
-}
 
 /** 没指定形态时桌宠页优先挑基建，没有就正面：这里按同样的规则 */
 export function defaultGroup(groups: string[]): string | null {
@@ -45,7 +37,7 @@ export function ModelPicker({
   const signedIn = state.auth.phase === 'signedIn'
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
-  const match = (name: string) => !q || name.toLowerCase().includes(q)
+  const match = (name: string) => nameMatches(name, q)
 
   const local = state.models.filter((m) => match(m.name))
   const online = state.catalog.filter((c) => !state.models.some((m) => m.name === c.name) && match(c.name))
@@ -118,62 +110,64 @@ export function ModelPicker({
     onClose()
   }
 
+  const s = t().picker
+  const c = t().common
   const localMeta = (m: ModelInfo) =>
-    [m.name === pet.model ? '在用' : null, m.builtin ? '内置' : state.catalog.some((c) => c.name === m.name) ? null : '导入'].filter(Boolean).join(' · ')
+    [m.name === pet.model ? s.inUse : null, m.builtin ? c.builtin : state.catalog.some((x) => x.name === m.name) ? null : s.imported].filter(Boolean).join(' · ')
 
   return (
     <div className="rs-page rs-page--fill rs-picker">
       <header className="rs-page__head rs-picker__head">
         <Button variant="ghost" onClick={onClose}>
-          <I.IconBack /> 返回
+          <I.IconBack /> {c.back}
         </Button>
-        <h1 className="rs-title">给桌宠 {index + 1} 选模型</h1>
+        <h1 className="rs-title">{s.title(index + 1)}</h1>
       </header>
 
       <div className="rl-lib">
         <div className="rl-side">
           <Field.Root className="rl-search">
-            <Field.Control placeholder="搜索模型" value={query} onChange={(e) => setQuery((e.target as HTMLInputElement).value)} />
+            <Field.Control placeholder={s.search} value={query} onChange={(e) => setQuery((e.target as HTMLInputElement).value)} />
           </Field.Root>
-          <ul className="rl-list" role="listbox" aria-label="模型">
+          <ul className="rl-list" role="listbox" aria-label={s.listAria}>
             <li className="rl-heading" role="presentation">
-              已下载
+              {s.downloaded}
             </li>
             {local.map((m) => {
               const on = focus?.kind === 'local' && focus.name === m.name
               return (
                 <li key={m.name} className="rl-row" role="option" aria-selected={on} data-current={on || undefined} onClick={() => choose({ kind: 'local', name: m.name })}>
-                  <span className="rl-row__name">{m.name}</span>
+                  <span className="rl-row__name">{modelName(m.name)}</span>
                   <span className="rl-row__meta">{localMeta(m)}</span>
                 </li>
               )
             })}
-            {local.length === 0 && <li className="rs-empty rl-none">{q ? `没有匹配「${query}」的模型` : '还没有下载模型'}</li>}
+            {local.length === 0 && <li className="rs-empty rl-none">{q ? s.noMatch(query) : s.noneDownloaded}</li>}
 
             <li className="rl-heading" role="presentation">
-              在线模型
+              {s.online}
             </li>
             {signedIn ? (
               <>
-                {online.map((c) => {
-                  const on = focus?.kind === 'online' && focus.id === c.id
+                {online.map((m) => {
+                  const on = focus?.kind === 'online' && focus.id === m.id
                   return (
-                    <li key={c.id} className="rl-row" role="option" aria-selected={on} data-current={on || undefined} onClick={() => choose({ kind: 'online', id: c.id })}>
-                      <span className="rl-row__name">{c.name}</span>
-                      <span className="rl-row__meta" data-error={c.state === 'failed' || undefined}>
-                        {ONLINE_STATE[c.state] || mb(c.size)}
+                    <li key={m.id} className="rl-row" role="option" aria-selected={on} data-current={on || undefined} onClick={() => choose({ kind: 'online', id: m.id })}>
+                      <span className="rl-row__name">{modelName(m.name)}</span>
+                      <span className="rl-row__meta" data-error={m.state === 'failed' || undefined}>
+                        {s.state[m.state] || mb(m.size)}
                       </span>
                     </li>
                   )
                 })}
                 {online.length === 0 && (
-                  <li className="rs-empty rl-none">{state.catalog.length === 0 ? (state.updates.error ? `暂时拿不到列表：${state.updates.error}` : '正在获取列表…') : q ? '没有匹配的在线模型' : '全部都下载了'}</li>
+                  <li className="rs-empty rl-none">{state.catalog.length === 0 ? (state.updates.error ? s.listError(state.updates.error) : s.fetching) : q ? s.noOnlineMatch : s.allDownloaded}</li>
                 )}
               </>
             ) : (
               <li className="rl-login" role="presentation">
-                <span className="rs-hint">登录后可以浏览在线模型</span>
-                <Button onClick={() => send({ type: 'authLogin' })}>{state.auth.phase === 'signingIn' ? '重新打开登录页' : '登录'}</Button>
+                <span className="rs-hint">{s.loginToBrowse}</span>
+                <Button onClick={() => send({ type: 'authLogin' })}>{state.auth.phase === 'signingIn' ? c.reopenLogin : c.login}</Button>
               </li>
             )}
           </ul>
@@ -182,24 +176,24 @@ export function ModelPicker({
         <div className="rs-picker__right">
           <ModelPreview
             source={source}
-            caption={focusModel?.name ?? focusOnline?.name}
-            note={focusModel && group && group !== '基建' ? '战斗形态不会走动；桌面上点它会播攻击' : undefined}
+            caption={focusModel ? modelName(focusModel.name) : undefined}
+            note={focusModel && group && group !== '基建' ? s.battleNote : undefined}
           />
           <div className="rs-group__body">
             {focusModel ? (
               <>
-                {sets !== null && sets.length === 0 && <Row label="读不到这个模型的文件" error hint="检查模型文件夹，或到模型库删掉重新下载" />}
-                <Row label="时装">
+                {sets !== null && sets.length === 0 && <Row label={s.unreadable} error hint={s.unreadableHint} />}
+                <Row label={s.outfit}>
                   <Pick
-                    label="时装"
+                    label={s.outfit}
                     value={outfit}
                     options={outfits.map((o) => [o, skin(o)])}
                     onChange={(v) => setPicked({ outfit: v, group: picked.group ?? group })}
                   />
                 </Row>
-                <Row label="形态">
+                <Row label={s.form}>
                   {groups.length > 0 ? (
-                    <Choice aria="形态" value={group} options={groups.map((g) => [g, groupLabel(g)])} onChange={(v) => setPicked({ outfit, group: v })} />
+                    <Choice aria={s.form} value={group} options={groups.map((g) => [g, groupLabel(g)])} onChange={(v) => setPicked({ outfit, group: v })} />
                   ) : (
                     <span className="rs-line__value">{sets === null ? '…' : '—'}</span>
                   )}
@@ -207,16 +201,16 @@ export function ModelPicker({
               </>
             ) : focusOnline ? (
               <Row
-                label={focusOnline.state === 'failed' ? '下载失败' : '还没下载'}
+                label={focusOnline.state === 'failed' ? s.downloadFailed : s.notDownloaded}
                 error={focusOnline.state === 'failed'}
                 hint={
                   focusOnline.state === 'failed' && focusOnline.error
                     ? focusOnline.error
-                    : `${focusOnline.skins > 0 ? `共 ${focusOnline.skins} 套时装，` : ''}下载后可以选时装和形态 · ${mb(focusOnline.size)}`
+                    : s.onlineHint(focusOnline.skins, mb(focusOnline.size))
                 }
               />
             ) : (
-              <Row label="在左边选一个模型" />
+              <Row label={s.pickLeft} />
             )}
           </div>
         </div>
@@ -224,10 +218,10 @@ export function ModelPicker({
 
       <footer className="rl-footer">
         <Button variant="ghost" onClick={onClose}>
-          取消
+          {c.cancel}
         </Button>
         <Button variant="primary" disabled={focusModel ? !sets || sets.length === 0 : !focusOnline} onClick={use}>
-          {focusModel ? '使用' : '下载并使用'}
+          {focusModel ? s.use : s.downloadAndUse}
         </Button>
       </footer>
     </div>

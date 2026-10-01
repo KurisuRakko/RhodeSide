@@ -38,3 +38,12 @@
   gap: 8px;
   padding-top: 16px;
 }
+
+/* 左下角的界面语言 */
+.rw-lang {
+  margin-right: auto;
+}
+
+.rw-lang .rs-select {
+  width: 180px;
+}

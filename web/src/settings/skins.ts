@@ -1,8 +1,10 @@
 /**
- * 显示用的名字：时装 key → PRTS 时装名（模型文件夹里的 skins.json，fetch-prts.mjs 写的），
- * 模型组 → 基建 / 战斗 · 正面 / 战斗 · 背面。
+ * 显示用的名字：时装 key → PRTS 时装名（模型文件夹里的 skins.json，fetch-prts.mjs 写的；其他语言的译名在在线目录里），
+ * 模型组 → 基建 / 战斗 · 正面 / 战斗 · 背面。组名本身（基建 / 正面 / 背面 + 重名时的「 2」）是配置里存的 key，不翻。
  */
 import { useEffect, useState } from 'react'
+
+import { outfitName, t } from '../i18n/index.ts'
 
 const cache = new Map<string, Promise<Record<string, string>>>()
 
@@ -32,9 +34,12 @@ export function useSkinNames(model: { name: string; files: string[] } | undefine
       alive = false
     }
   }, [model])
-  return (outfit: string) => names[outfit] ?? outfit
+  return (outfit: string) => (model ? outfitName(model.name, outfit, names[outfit]) : outfit)
 }
 
 export function groupLabel(group: string) {
-  return group.replace(/^(正面|背面)/, '战斗 · $1')
+  const g = t().group
+  const m = /^(基建|正面|背面)(.*)$/.exec(group)
+  if (!m) return group
+  return ({ 基建: g.build, 正面: g.front, 背面: g.back } as Record<string, string>)[m[1]] + m[2]
 }

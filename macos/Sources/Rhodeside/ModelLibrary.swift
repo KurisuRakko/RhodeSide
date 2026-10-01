@@ -49,7 +49,7 @@ enum ModelLibrary {
     /// 导入时起名：和已有的（内置 + 导入）都不重名
     static func uniqueName(_ base: String) -> String {
         let clean = base.replacingOccurrences(of: "/", with: "_").trimmingCharacters(in: .whitespacesAndNewlines)
-        let stem = clean.isEmpty ? "未命名模型" : clean
+        let stem = clean.isEmpty ? tr("未命名模型", "未命名模型", "Untitled model") : clean
         let taken = Set(all().map(\.name))
         if !taken.contains(stem) { return stem }
         var i = 2
@@ -63,9 +63,9 @@ enum ModelLibrary {
     }
 
     static func delete(_ name: String) throws {
-        guard validName(name) else { throw NSError(domain: "Rhodeside", code: 1, userInfo: [NSLocalizedDescriptionKey: "模型名不合法"]) }
+        guard validName(name) else { throw NSError(domain: "Rhodeside", code: 1, userInfo: [NSLocalizedDescriptionKey: tr("模型名不合法", "模型名稱不合法", "Invalid model name")]) }
         let dir = Paths.userModels.appendingPathComponent(name, isDirectory: true)
-        guard isDirectory(dir) else { throw NSError(domain: "Rhodeside", code: 1, userInfo: [NSLocalizedDescriptionKey: "内置模型不能删"]) }
+        guard isDirectory(dir) else { throw NSError(domain: "Rhodeside", code: 1, userInfo: [NSLocalizedDescriptionKey: tr("内置模型不能删", "內置模型不能刪除", "Built-in models can't be deleted")]) }
         try FileManager.default.trashItem(at: dir, resultingItemURL: nil)
     }
 

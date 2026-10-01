@@ -75,6 +75,11 @@
   gap: 12px;
 }
 
+/* 页头右边的分段按钮（在线模型 / 我的模型）：英文字长，不许折成两行 */
+.rs-page__head .rk-segment {
+  white-space: nowrap;
+}
+
 .rs-page__foot {
   display: flex;
   flex-wrap: wrap;

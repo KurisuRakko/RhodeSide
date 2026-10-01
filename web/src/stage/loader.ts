@@ -7,6 +7,8 @@
  * 时装 key = 文件名去掉 build_ 前缀；模型组：build_ → 基建，路径里有 back/背面 → 背面，其余 → 正面。
  */
 
+import { t } from '../i18n/index.ts'
+
 export interface SourceFile {
   /** 相对 base 的路径，用 / 分隔 */
   path: string
@@ -50,8 +52,8 @@ export async function collectSets(files: SourceFile[]): Promise<ModelSet[]> {
   const skels: SourceFile[] = []
   for (const f of files) if (SKEL_RE.test(f.path) && (await isSkeletonJson(f))) skels.push(f)
   const atlases = files.filter((f) => ATLAS_RE.test(f.path))
-  if (skels.length === 0) throw new Error('没找到骨骼文件（.skel 或 .json）')
-  if (atlases.length === 0) throw new Error('没找到图集文件（.atlas）')
+  if (skels.length === 0) throw new Error(t().stage.noSkeleton)
+  if (atlases.length === 0) throw new Error(t().stage.noAtlas)
 
   const sets: ModelSet[] = []
   const seen = new Map<string, number>()
@@ -73,7 +75,7 @@ export async function collectSets(files: SourceFile[]): Promise<ModelSet[]> {
     if (n > 1) group = `${group} ${n}`
     sets.push({ id: `${skel.path}|${atlas.path}`, outfit, group, skeleton: skel, atlas, files })
   }
-  if (sets.length === 0) throw new Error('骨骼和图集对不上：请把同名的 .skel/.json 与 .atlas 放在一起')
+  if (sets.length === 0) throw new Error(t().stage.mismatch)
 
   const order = ['正面', '背面', '基建']
   const rank = (g: string) => {
@@ -174,7 +176,7 @@ export async function fetchManifest(base: string): Promise<ManifestEntry[]> {
 
 const fetchBlob = async (base: string, path: string): Promise<Blob> => {
   const res = await fetch(base + path.split('/').map(encodeURIComponent).join('/'))
-  if (!res.ok) throw new Error(`读不到 ${path}（HTTP ${res.status}）`)
+  if (!res.ok) throw new Error(t().stage.readFailed(path, res.status))
   return res.blob()
 }
 

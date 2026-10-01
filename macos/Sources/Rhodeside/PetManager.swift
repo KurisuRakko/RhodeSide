@@ -47,6 +47,8 @@ final class PetManager {
     private var companionsAt: CFTimeInterval = 0
     /// 召出套组时还没下载、模型目录又还没拿到的模型名：目录到了再排队下载
     private var wantedModels: Set<String> = []
+    /// 界面语言变了（AppDelegate 重建菜单）
+    var onLanguageChange: (() -> Void)?
 
     init() {
         Paths.ensureDirectories()
@@ -59,6 +61,7 @@ final class PetManager {
         }
         config = cfg
         config.pets = Array(Self.uniqueIDs(cfg.pets.map { $0.sanitized() }).prefix(AppConfig.maxPets))
+        L10n.set(config.language)
         positions = SavedPositions.load(from: Paths.positions)
         tuning = Tuning.load(from: Paths.webRoot.appendingPathComponent("rhodeside-tuning.json"))
         saveConfig()
@@ -341,6 +344,11 @@ final class PetManager {
         if old.voice != new.voice {
             for pet in pets { pet.applyVoice() }
         }
+        if old.language != new.language {
+            L10n.set(new.language)
+            onLanguageChange?()
+            for p in pages { p.applyLanguage() }
+        }
         auth.apply(new.auth)
         updater.apply(new.updates)
         if old.walkOnWindows != new.walkOnWindows || old.ignoredApps != new.ignoredApps || old.hideInFullscreen != new.hideInFullscreen {
@@ -414,8 +422,9 @@ final class PetManager {
         let name = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty { return String(name.prefix(40)) }
         var n = c.teams.count + 1
-        while c.teams.contains(where: { $0.name == "套组 \(n)" }) { n += 1 }
-        return "套组 \(n)"
+        let base = tr("套组", "套組", "Squad")
+        while c.teams.contains(where: { $0.name == "\(base) \(n)" }) { n += 1 }
+        return "\(base) \(n)"
     }
 
     /// 把当前桌面上的桌宠存成一个新套组；当前这些桌宠随即联动起来
@@ -622,6 +631,8 @@ final class PetManager {
             "catalog": updater.modelStatus,
             "logUpload": logUploader.status,
             "appBuild": NSNumber(value: Paths.appBuild),
+            // 「跟随系统」时网页按这个定语言（WebView 的 navigator.languages 不一定是系统的）
+            "systemLanguages": Locale.preferredLanguages,
         ]
     }
 

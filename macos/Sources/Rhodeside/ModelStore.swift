@@ -22,6 +22,9 @@ enum ModelStore {
         /// 时装套数（模型库列表里显示）
         let skins: Int?
         let preview: Preview?
+        /// 译名：干员名 {en, zh-Hant}、时装 key → {en, zh-Hant}（publish.mjs 写的；老目录没有）。只给界面显示用
+        let names: [String: String]?
+        let outfits: [String: [String: String]]?
     }
 
     struct Preview: Codable, Equatable {
@@ -49,13 +52,13 @@ enum ModelStore {
     static func verify(_ data: Data) throws -> Catalog {
         let payload = try RemoteUpdater.openEnvelope(data)
         guard let c = try? JSONDecoder().decode(Catalog.self, from: payload), c.schema == 1, c.kind == "models" else {
-            throw Oops("模型目录格式不对")
+            throw Oops(tr("模型目录格式不对", "模型目錄格式不正確", "Malformed model list"))
         }
         for m in c.models {
             guard m.path.hasPrefix("v1/models/"), !m.path.contains(".."), ModelLibrary.validName(m.name), ModelLibrary.validName(m.id),
                   m.preview.map({ $0.path.hasPrefix("v1/previews/") && !$0.path.contains("..") }) ?? true
             else {
-                throw Oops("模型目录里的路径不合法（\(m.id)）")
+                throw Oops(tr("模型目录里的路径不合法（\(m.id)）", "模型目錄裡的路徑不合法（\(m.id)）", "Invalid path in the model list (\(m.id))"))
             }
         }
         return c
@@ -136,9 +139,9 @@ enum ModelStore {
         try untar(archive, into: work)
         defer { try? fm.removeItem(at: work) }
         let top = (try? fm.contentsOfDirectory(atPath: work.path))?.filter { !$0.hasPrefix(".") } ?? []
-        guard top == [m.name] else { throw Oops("模型包内容不对（应只有「\(m.name)」一个文件夹）") }
+        guard top == [m.name] else { throw Oops(tr("模型包内容不对（应只有「\(m.name)」一个文件夹）", "模型套件內容不正確（應只有「\(m.name)」一個檔案夾）", "Unexpected model package contents (should be a single \"\(m.name)\" folder)")) }
         let src = work.appendingPathComponent(m.name, isDirectory: true)
-        guard !ModelLibrary.listFiles(src, prefix: m.name).isEmpty else { throw Oops("模型包里没有模型文件") }
+        guard !ModelLibrary.listFiles(src, prefix: m.name).isEmpty else { throw Oops(tr("模型包里没有模型文件", "模型套件裡沒有模型檔案", "The model package has no model files")) }
         let dest = Paths.userModels.appendingPathComponent(m.name, isDirectory: true)
         let old = Paths.updates.appendingPathComponent("model-\(m.id).old", isDirectory: true)
         try? fm.removeItem(at: old)
@@ -173,13 +176,13 @@ enum ModelStore {
         try untar(archive, into: work)
         defer { try? fm.removeItem(at: work) }
         let top = (try? fm.contentsOfDirectory(atPath: work.path))?.filter { !$0.hasPrefix(".") } ?? []
-        guard top == [m.name] else { throw Oops("预览包内容不对") }
+        guard top == [m.name] else { throw Oops(tr("预览包内容不对", "預覽套件內容不正確", "Unexpected preview package contents")) }
         let src = work.appendingPathComponent(m.name, isDirectory: true)
         try m.version.write(to: src.appendingPathComponent(".version"), atomically: true, encoding: .utf8)
         let dest = Paths.previews.appendingPathComponent(m.id, isDirectory: true)
         try? fm.removeItem(at: dest)
         try fm.moveItem(at: src, to: dest)
-        guard let files = cachedPreview(m) else { throw Oops("预览包里没有模型文件") }
+        guard let files = cachedPreview(m) else { throw Oops(tr("预览包里没有模型文件", "預覽套件裡沒有模型檔案", "The preview package has no model files")) }
         return files
     }
 
@@ -194,10 +197,13 @@ enum ModelStore {
             else if failed[m.id] != nil { state = "failed" }
             else if asked.contains(m.id) { state = "queued" }
             else { state = "available" }
-            return [
+            var d: [String: Any] = [
                 "id": m.id, "name": m.name, "size": m.size, "default": m.default == true, "skins": m.skins ?? 0,
                 "preview": m.preview != nil, "state": state, "error": failed[m.id] ?? NSNull(),
             ]
+            if let n = m.names { d["names"] = n }
+            if let o = m.outfits { d["outfits"] = o }
+            return d
         }
     }
 }

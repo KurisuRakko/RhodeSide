@@ -6,6 +6,8 @@
  *   没有开头、但有 `P_Loop` + `P_End` 的也算。另外单独的 `Start`（登场）、`Attack`（没有攻击连招时）各一个按钮。
  */
 
+import { t } from '../i18n/index.ts'
+
 export interface ComboStep {
   name: string
   /** true：循环 seconds 秒；false：播一次（seconds = 动画时长，animDone 没来时兜底） */
@@ -50,9 +52,9 @@ export function detectCombos(animations: { name: string; duration: number }[]): 
     out.push({ id: p, label: comboLabel(p), steps })
   }
   const start = byLower.get('start')
-  if (start) out.push({ id: start, label: '登场', steps: [once(start)] })
+  if (start) out.push({ id: start, label: comboLabel(start), steps: [once(start)] })
   const single = byLower.get('attack')
-  if (single && !out.some((c) => c.id.toLowerCase() === 'attack')) out.push({ id: single, label: '攻击', steps: [once(single)] })
+  if (single && !out.some((c) => c.id.toLowerCase() === 'attack')) out.push({ id: single, label: comboLabel(single), steps: [once(single)] })
   const rank = (id: string) => {
     const l = id.toLowerCase()
     return l === 'start' ? 0 : l.startsWith('attack') ? 1 : l.startsWith('skill') ? 2 : 3
@@ -65,13 +67,14 @@ export function attackCombo(combos: Combo[]): Combo | null {
   return combos.find((c) => c.id.toLowerCase() === 'attack') ?? null
 }
 
-/** `Skill_3` → 技能 3，`Skill_Down_2` → 技能 2 · Down，`Attack` → 攻击 */
+/** `Skill_3` → 技能 3，`Skill_Down_2` → 技能 2 · Down，`Attack` → 攻击（按当前界面语言） */
 export function comboLabel(prefix: string): string {
   const words: string[] = []
   let number: string | null = null
+  const names = t().combo as Record<string, string>
   prefix.split('_').forEach((w, i) => {
     if (/^\d+$/.test(w)) number = String(Number(w))
-    else if (i === 0) words.push({ skill: '技能', attack: '攻击', move: '移动', start: '登场' }[w.toLowerCase()] ?? w)
+    else if (i === 0) words.push(names[w.toLowerCase()] ?? w)
     else words.push(w)
   })
   if (words.length === 0) return prefix

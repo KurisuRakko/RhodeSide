@@ -45,7 +45,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
         var title: String {
             switch self {
             case .settings: "Rhodeside"
-            case .welcome: "欢迎使用 Rhodeside"
+            case .welcome: tr("欢迎使用 Rhodeside", "歡迎使用 Rhodeside", "Welcome to Rhodeside")
             }
         }
         var size: NSSize {
@@ -119,6 +119,11 @@ final class SettingsController: NSObject, NSWindowDelegate {
         webView.send(["type": "toast", "text": text])
     }
 
+    /// 界面语言变了：窗口标题跟着换（网页自己跟着推过去的状态换）
+    func applyLanguage() {
+        window.title = page.title
+    }
+
     func windowWillClose(_ notification: Notification) {
         window.delegate = nil
         webView.configuration.userContentController.removeAllScriptMessageHandlers()
@@ -132,8 +137,8 @@ final class SettingsController: NSObject, NSWindowDelegate {
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = true
-        panel.message = "选择模型文件夹（每个文件夹为一个模型）"
-        panel.prompt = "导入"
+        panel.message = tr("选择模型文件夹（每个文件夹为一个模型）", "選擇模型檔案夾（每個檔案夾為一個模型）", "Choose model folders (one folder per model)")
+        panel.prompt = tr("导入", "匯入", "Import")
         panel.beginSheetModal(for: window) { [weak self] resp in
             if resp == .OK { self?.importURLs(panel.urls) }
         }
@@ -141,7 +146,7 @@ final class SettingsController: NSObject, NSWindowDelegate {
 
     private func importURLs(_ urls: [URL]) {
         let (jobs, errors) = manager.importer.stage(urls)
-        for e in errors { toast("导入失败：\(e)") }
+        for e in errors { toast(Self.importFailed(e)) }
         for j in jobs {
             webView.send(["type": "importStaged", "token": j.token, "name": j.name, "base": "./import/\(j.token)/", "files": j.files])
         }
@@ -152,15 +157,19 @@ final class SettingsController: NSObject, NSWindowDelegate {
         if b.bool("ok") == true {
             do {
                 let name = try manager.importer.commit(token)
-                toast("已导入「\(name)」")
+                toast(tr("已导入「\(name)」", "已匯入「\(name)」", "Imported \"\(name)\""))
                 pushState()
             } catch {
-                toast("导入失败：\(error.localizedDescription)")
+                toast(Self.importFailed(error.localizedDescription))
             }
         } else {
             manager.importer.abort(token)
-            toast("导入失败：\(b.string("reason") ?? "未通过检查")")
+            toast(Self.importFailed(b.string("reason") ?? tr("未通过检查", "未通過檢查", "didn't pass the check")))
         }
+    }
+
+    private static func importFailed(_ why: String) -> String {
+        tr("导入失败：\(why)", "匯入失敗：\(why)", "Import failed: \(why)")
     }
 }
 
@@ -173,7 +182,7 @@ extension SettingsController: WKScriptMessageHandler {
         case "updatePet":
             if let id = b.string("id"), let patch = b.raw["patch"] as? [String: Any] { manager.updatePet(id, patch: patch) }
         case "addPet":
-            if !manager.addPet(model: b.string("model")) { toast("最多 \(AppConfig.maxPets) 个桌宠") }
+            if !manager.addPet(model: b.string("model")) { toast(tr("最多 \(AppConfig.maxPets) 个桌宠", "最多 \(AppConfig.maxPets) 隻桌寵", "Up to \(AppConfig.maxPets) pets")) }
         case "removePet":
             if let id = b.string("id") { manager.removePet(id) }
         case "summonPet":
@@ -196,7 +205,7 @@ extension SettingsController: WKScriptMessageHandler {
             do {
                 ModelStore.modelDeleted(name)
                 try ModelLibrary.delete(name)
-                toast("已将「\(name)」移到废纸篓")
+                toast(tr("已将「\(name)」移到废纸篓", "已將「\(name)」移到垃圾桶", "Moved \"\(name)\" to the Trash"))
                 // 用它的桌宠换成还在的第一个模型；一个都没有就不动配置（桌宠收起来，提示去模型库下载）
                 var cfg = manager.config
                 if let other = ModelLibrary.all().first(where: { $0.name != name }) {
@@ -209,7 +218,7 @@ extension SettingsController: WKScriptMessageHandler {
                 }
                 manager.apply(cfg, reason: "删除模型「\(name)」")
             } catch {
-                toast("删除失败：\(error.localizedDescription)")
+                toast(tr("删除失败：\(error.localizedDescription)", "刪除失敗：\(error.localizedDescription)", "Couldn't delete: \(error.localizedDescription)"))
             }
         case "reveal":
             switch b.string("what") {
@@ -220,19 +229,19 @@ extension SettingsController: WKScriptMessageHandler {
             }
         case "snapshot":
             manager.snapshotAll()
-            toast("诊断快照已保存到日志文件夹")
+            toast(tr("诊断快照已保存到日志文件夹", "診斷快照已儲存到日誌檔案夾", "Diagnostic snapshot saved to the logs folder"))
         case "checkUpdates":
             manager.updater.check(force: true)
         case "uploadLogs":
             guard !manager.logUploader.busy else { break }
             manager.logUploader.run("manual") { [weak self] error in
-                self?.toast(error.map { "日志上传失败：\($0)" } ?? "日志已上传")
+                self?.toast(error.map { tr("日志上传失败：\($0)", "日誌上載失敗：\($0)", "Log upload failed: \($0)") } ?? tr("日志已上传", "日誌已上載", "Logs uploaded"))
             }
         case "perform":
             guard let raw = b.string("behavior"), let behavior = Behavior(rawValue: raw) else { break }
             for pet in manager.pets where b.string("id") == nil || pet.config.id == b.string("id") { pet.perform(behavior) }
         case "saveTeam":
-            if !manager.saveTeam(name: b.string("name")) { toast("桌面上还没有桌宠") }
+            if !manager.saveTeam(name: b.string("name")) { toast(tr("桌面上还没有桌宠", "桌面上還沒有桌寵", "No pets on the desktop yet")) }
         case "overwriteTeam":
             if let id = b.string("id") { manager.overwriteTeam(id) }
         case "summonTeam":

@@ -117,14 +117,14 @@ final class Pet: NSObject {
     private func sendLoad() {
         var name = config.model
         if ModelLibrary.find(name) == nil, name != AppConfig.builtinModel {
-            lastError = "未找到模型「\(name)」，改用默认模型"
+            lastError = tr("未找到模型「\(name)」，改用默认模型", "找不到模型「\(name)」，改用預設模型", "Model \"\(name)\" not found; using the default model")
             Log.warn("[\(short)] \(lastError!)")
             name = AppConfig.builtinModel
         }
         guard let model = ModelLibrary.find(name) else {
             lastError = ModelStore.isDismissed(name: config.model)
-                ? "模型「\(config.model)」已删除，可以在模型库里重新下载"
-                : "模型「\(config.model)」还没下载，可以在模型库里下载"
+                ? tr("模型「\(config.model)」已删除，可以在模型库里重新下载", "模型「\(config.model)」已刪除，可以在模型庫裡重新下載", "Model \"\(config.model)\" was deleted; download it again from the Library")
+                : tr("模型「\(config.model)」还没下载，可以在模型库里下载", "模型「\(config.model)」還沒下載，可以在模型庫裡下載", "Model \"\(config.model)\" isn't downloaded yet; get it from the Library")
             Log.info("[\(short)] \(lastError!)")
             // 模型被删了：之前画着的也收起来（不能继续显示已删除的模型）
             loadedFiles = []
@@ -136,7 +136,8 @@ final class Pet: NSObject {
             return
         }
         loadedFiles = model.files
-        var msg: [String: Any] = ["type": "load", "base": "./models/", "files": model.files, "height": config.height, "pma": config.pma, "voice": voiceMessage()]
+        // lang：页面用它翻载入失败的原因、连招名
+        var msg: [String: Any] = ["type": "load", "base": "./models/", "files": model.files, "height": config.height, "pma": config.pma, "voice": voiceMessage(), "lang": L10n.current.rawValue]
         if name == config.model {
             if let o = config.outfit { msg["outfit"] = o }
             if let g = config.group { msg["group"] = g }
@@ -277,13 +278,13 @@ final class Pet: NSObject {
         let text = b.string("text") ?? "?"
         Log.error("[\(short) 网页] \(b.string("stage") ?? "") \(text)")
         guard b.string("stage") == "load" else { return }
-        lastError = "加载失败：\(text)"
+        lastError = tr("加载失败：\(text)", "載入失敗：\(text)", "Failed to load: \(text)")
         manager.petChanged(self)
         // 从来没载入成功过、又不是内置模型：退回内置模型，至少有只小人
         if info == nil, !fellBack, config.model != AppConfig.builtinModel, let m = ModelLibrary.find(AppConfig.builtinModel) {
             fellBack = true
             loadedFiles = m.files
-            window.webView.send(["type": "load", "base": "./models/", "files": m.files, "height": config.height, "group": "基建", "model": m.name])
+            window.webView.send(["type": "load", "base": "./models/", "files": m.files, "height": config.height, "group": "基建", "model": m.name, "lang": L10n.current.rawValue])
         }
     }
 
@@ -619,7 +620,7 @@ extension Pet: WKNavigationDelegate {
         let mb = manager.monitor?.lastMB(monitorName).map { "，最近一次采样 \(Int($0)) MB" } ?? ""
         Log.error("[\(short)] 网页进程退出了：\(reason ?? "原因未知")（一分钟内第 \(crashes.count) 次\(mb)）")
         guard crashes.count <= 3 else {
-            lastError = "渲染进程 1 分钟内崩溃 \(crashes.count) 次，已停止自动重载"
+            lastError = tr("渲染进程 1 分钟内崩溃 \(crashes.count) 次，已停止自动重载", "渲染程序 1 分鐘內當機 \(crashes.count) 次，已停止自動重新載入", "The renderer crashed \(crashes.count) times within a minute; stopped reloading automatically")
             manager.petChanged(self)
             return
         }

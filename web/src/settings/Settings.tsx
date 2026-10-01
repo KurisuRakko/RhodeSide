@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SideNav, Snackbar, Tabs, useSnackbar } from '@rakko/react'
 
+import { adoptState, t } from '../i18n/index.ts'
 import * as I from '../ui/icons.tsx'
 import { onMessage, send, type NativeState, type StagedImport } from './bridge.ts'
 import { ModelsPage, type ImportStatus } from './ModelsPage.tsx'
@@ -72,6 +73,7 @@ function Main() {
       switch (m.type) {
         case 'state': {
           const { type: _t, ...rest } = m
+          adoptState(rest)
           setState(rest)
           break
         }
@@ -98,20 +100,21 @@ function Main() {
     }
   }, [say, runImport])
 
-  if (!state) return <div className="rs-loading">正在连接…</div>
+  const s = t()
+  if (!state) return <div className="rs-loading">{s.common.connecting}</div>
 
   return (
     <SideNav.Provider>
       <Tabs.Root className="rs-shell" orientation="vertical" value={tab} onValueChange={(v) => setTab(v as Tab)} data-drop={dropHover || undefined}>
         <SideNav.Root aria-label="Rhodeside" top={0} width={168}>
           <SideNav.Item value="pets" icon={<I.IconPaw />}>
-            桌宠
+            {s.nav.pets}
           </SideNav.Item>
           <SideNav.Item value="models" icon={<I.IconBox />}>
-            模型库
+            {s.nav.models}
           </SideNav.Item>
           <SideNav.Item value="settings" icon={<I.IconGear />}>
-            设置
+            {s.nav.settings}
           </SideNav.Item>
         </SideNav.Root>
         <main className="rs-main">

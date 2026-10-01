@@ -5,9 +5,10 @@
 import { Button, Field } from '@rakko/react'
 import { useState } from 'react'
 
+import { dateTime, languageOptions, t, time } from '../i18n/index.ts'
 import * as I from '../ui/icons.tsx'
 import { native, send, type LogUploadStatus, type NativeState, type UpdateStatus } from './bridge.ts'
-import { Choice, Group, nearest, Row, SwitchRow } from './ui.tsx'
+import { Choice, Group, nearest, Pick, Row, SwitchRow } from './ui.tsx'
 
 const VOLUMES: [string, string][] = [
   ['1', '100%'],
@@ -16,42 +17,38 @@ const VOLUMES: [string, string][] = [
   ['0.3', '30%'],
 ]
 
-const APP_STATE: Record<string, string> = {
-  waiting: '有新版本，拖动结束后安装',
-  downloading: '正在下载新版本',
-  installing: '正在验证新版本',
-  restarting: '正在重启',
-  failed: '新版本无法启动，已恢复旧版本',
-}
-
 export function SettingsPage({ state }: { state: NativeState }) {
   const { config } = state
   // 老版本 App 的配置里没有 voice（前端先热更新到了、App 还没更新时）：不显示语音设置
   const voice = config.voice
+  const s = t().settings
+  const c = t().common
+  // 老版本 App 的配置里没有 language（改了也存不住）：不显示
+  const language = config.language
   return (
     <div className="rs-page">
       <header className="rs-page__head">
-        <h1 className="rs-title">设置</h1>
+        <h1 className="rs-title">{s.title}</h1>
         {(state.webDev || !native) && (
           <div className="rs-row">
-            {state.webDev && <span className="rs-badge">开发版界面</span>}
-            {!native && <span className="rs-badge">浏览器预览</span>}
+            {state.webDev && <span className="rs-badge">{s.devBadge}</span>}
+            {!native && <span className="rs-badge">{c.browserPreview}</span>}
           </div>
         )}
       </header>
 
       <Account state={state} />
 
-      <Group title="所有桌宠">
+      <Group title={s.allPets}>
         <SwitchRow
-          label="在窗口上行走"
-          hint="关掉后只在屏幕底部活动"
+          label={s.walkOnWindows}
+          hint={s.walkOnWindowsHint}
           checked={config.walkOnWindows}
           onChange={(v) => send({ type: 'updateGlobal', patch: { walkOnWindows: v } })}
         />
         <SwitchRow
-          label="其他应用全屏时隐藏"
-          hint="有应用全屏时，隐藏那块屏幕上的桌宠"
+          label={s.hideInFullscreen}
+          hint={s.hideInFullscreenHint}
           checked={config.hideInFullscreen}
           onChange={(v) => send({ type: 'updateGlobal', patch: { hideInFullscreen: v } })}
         />
@@ -59,15 +56,15 @@ export function SettingsPage({ state }: { state: NativeState }) {
         {voice && (
           <>
             <SwitchRow
-              label="语音"
-              hint="基建形态下出现时和被点一下时说话（模型带语音才有）"
+              label={s.voice}
+              hint={s.voiceHint}
               checked={voice.enabled}
               onChange={(v) => send({ type: 'updateGlobal', patch: { voice: { ...voice, enabled: v } } })}
             />
             {voice.enabled && (
-              <Row label="语音音量">
+              <Row label={s.voiceVolume}>
                 <Choice
-                  aria="语音音量"
+                  aria={s.voiceVolume}
                   value={nearest(voice.volume, VOLUMES)}
                   options={VOLUMES}
                   onChange={(v) => send({ type: 'updateGlobal', patch: { voice: { ...voice, volume: Number(v) } } })}
@@ -78,57 +75,67 @@ export function SettingsPage({ state }: { state: NativeState }) {
         )}
       </Group>
 
-      <Group title="通用">
-        <SwitchRow label="登录时打开" hint={state.loginItem.detail} checked={state.loginItem.enabled} onChange={(v) => send({ type: 'setLoginItem', enabled: v })} />
+      <Group title={s.general}>
+        {language !== undefined && (
+          <Row label={s.language} hint={s.languageHint}>
+            <Pick
+              label={s.language}
+              value={language}
+              options={languageOptions()}
+              onChange={(v) => send({ type: 'updateGlobal', patch: { language: v } })}
+            />
+          </Row>
+        )}
+        <SwitchRow label={s.openAtLogin} hint={state.loginItem.detail} checked={state.loginItem.enabled} onChange={(v) => send({ type: 'setLoginItem', enabled: v })} />
         <SwitchRow
-          label="自动更新"
-          hint="界面更新立即生效；应用更新后会自动重启，启动失败会恢复旧版本"
+          label={s.autoUpdate}
+          hint={s.autoUpdateHint}
           checked={config.updates.enabled}
           onChange={(v) => send({ type: 'updateGlobal', patch: { updates: { ...config.updates, enabled: v } } })}
         />
-        <Row label="更新状态" hint={updateSummary(state.updates, config.updates.enabled)} error={!!state.updates.error || state.updates.app.state === 'failed'}>
-          <Button onClick={() => send({ type: 'checkUpdates' })}>检查更新</Button>
+        <Row label={s.updateStatus} hint={updateSummary(state.updates, config.updates.enabled)} error={!!state.updates.error || state.updates.app.state === 'failed'}>
+          <Button onClick={() => send({ type: 'checkUpdates' })}>{s.checkUpdates}</Button>
         </Row>
       </Group>
 
       <details className="rs-fold">
-        <summary>故障排查</summary>
+        <summary>{s.troubleshooting}</summary>
         <div className="rs-fold__body">
           <dl className="rs-kv">
-            <dt>版本</dt>
+            <dt>{s.version}</dt>
             <dd>{state.version}</dd>
-            <dt>应用构建</dt>
+            <dt>{s.appBuild}</dt>
             <dd>{formatBuild(state.updates.app.current)}</dd>
-            <dt>界面构建</dt>
+            <dt>{s.webBuild}</dt>
             <dd>{formatBuild(state.updates.current)}</dd>
             {state.updates.lastCheck && (
               <>
-                <dt>上次检查</dt>
-                <dd>{new Date(state.updates.lastCheck).toLocaleString()}</dd>
+                <dt>{s.lastCheck}</dt>
+                <dd>{dateTime(new Date(state.updates.lastCheck))}</dd>
               </>
             )}
             {state.logUpload && (
               <>
-                <dt>日志上传</dt>
+                <dt>{s.logUpload}</dt>
                 <dd>{logUploadSummary(state.logUpload)}</dd>
               </>
             )}
           </dl>
-          {state.logUpload && <p className="rs-hint">日志每天自动上传一次，出错退出后会立即上传，用于排查问题（内容是运行记录：系统版本、屏幕、账号名、电脑名和出错信息，不含模型文件）。</p>}
+          {state.logUpload && <p className="rs-hint">{s.logUploadNote}</p>}
           <div className="rs-row">
-            <Button onClick={() => send({ type: 'reveal', what: 'logs' })}>显示日志</Button>
+            <Button onClick={() => send({ type: 'reveal', what: 'logs' })}>{s.showLogs}</Button>
             {state.logUpload && (
               <Button disabled={state.logUpload.busy} onClick={() => send({ type: 'uploadLogs' })}>
-                {state.logUpload.busy ? '正在上传…' : '立即上传日志'}
+                {state.logUpload.busy ? s.uploading : s.uploadNow}
               </Button>
             )}
-            <Button onClick={() => send({ type: 'reveal', what: 'models' })}>显示模型文件夹</Button>
-            <Button onClick={() => send({ type: 'reveal', what: 'config' })}>显示配置文件</Button>
+            <Button onClick={() => send({ type: 'reveal', what: 'models' })}>{s.showModels}</Button>
+            <Button onClick={() => send({ type: 'reveal', what: 'config' })}>{s.showConfig}</Button>
             <Button onClick={() => send({ type: 'snapshot' })}>
-              <I.IconCamera /> 诊断快照
+              <I.IconCamera /> {s.snapshot}
             </Button>
             <Button onClick={() => send({ type: 'reloadWeb' })}>
-              <I.IconReplay /> 重新载入界面
+              <I.IconReplay /> {s.reloadWeb}
             </Button>
           </div>
         </div>
@@ -138,19 +145,21 @@ export function SettingsPage({ state }: { state: NativeState }) {
 }
 
 function logUploadSummary(u: LogUploadStatus): string {
-  if (u.busy) return '正在上传…'
-  const last = u.lastUpload ? new Date(u.lastUpload).toLocaleString() : '还没有上传过'
-  return u.error ? `${last}（上次失败：${u.error}）` : last
+  const s = t().settings
+  if (u.busy) return s.uploading
+  const last = u.lastUpload ? dateTime(new Date(u.lastUpload)) : s.neverUploaded
+  return u.error ? s.lastFailed(last, u.error) : last
 }
 
 /** 更新状态一句话：正在进行的事 > 错误 > 有新版本 > 已是最新 */
 function updateSummary(u: UpdateStatus, enabled: boolean): string {
-  if (u.app.state) return APP_STATE[u.app.state] ?? u.app.state
+  const s = t().settings
+  if (u.app.state) return s.appState[u.app.state] ?? u.app.state
   if (u.error) return u.error
   const newer = (u.app.remote !== null && u.app.remote > u.app.current) || (u.remote !== null && u.remote > u.current)
-  if (newer) return enabled ? '发现新版本，正在更新…' : '有新版本（自动更新已关闭，打开后安装）'
-  if (!u.lastCheck) return enabled ? '还没检查过' : '自动更新已关闭'
-  return `已是最新 · ${new Date(u.lastCheck).toLocaleTimeString()} 检查`
+  if (newer) return enabled ? s.updating : s.newerButOff
+  if (!u.lastCheck) return enabled ? s.neverChecked : s.updatesOff
+  return s.upToDate(time(new Date(u.lastCheck)))
 }
 
 /* ------------------------------------------------------------------ 账号 */
@@ -158,22 +167,18 @@ function updateSummary(u: UpdateStatus, enabled: boolean): string {
 function Account({ state }: { state: NativeState }) {
   const { auth } = state
   const signedIn = auth.phase === 'signedIn'
+  const s = t().settings
+  const c = t().common
   const text =
-    auth.phase === 'signedIn'
-      ? `已登录${auth.user ? ` · ${auth.user}` : ''}`
-      : auth.phase === 'signingIn'
-        ? '正在等待浏览器完成登录…'
-        : auth.phase === 'denied'
-          ? '这个账号没有使用权限'
-          : '没登录：登录后才能接收更新、下载模型'
+    auth.phase === 'signedIn' ? s.signedIn(auth.user) : auth.phase === 'signingIn' ? s.signingIn : auth.phase === 'denied' ? s.denied : s.signedOut
   return (
-    <Group title="账号">
-      <Row label="Priestess 账号" hint={auth.error ? `${text} · ${auth.error}` : text} error={auth.phase === 'denied' || !!auth.error}>
+    <Group title={s.account}>
+      <Row label={s.priestess} hint={auth.error ? `${text} · ${auth.error}` : text} error={auth.phase === 'denied' || !!auth.error}>
         {signedIn ? (
-          <Button onClick={() => send({ type: 'authLogout' })}>退出登录</Button>
+          <Button onClick={() => send({ type: 'authLogout' })}>{s.logout}</Button>
         ) : (
           <Button variant="primary" onClick={() => send({ type: 'authLogin' })}>
-            {auth.phase === 'signingIn' ? '重新打开登录页' : '登录'}
+            {auth.phase === 'signingIn' ? c.reopenLogin : c.login}
           </Button>
         )}
       </Row>
@@ -193,11 +198,13 @@ function IgnoreList({ apps, defaults }: { apps: string[]; defaults: string[] }) 
     setDraft('')
   }
   const same = apps.length === defaults.length && apps.every((a, i) => a === defaults[i])
+  const s = t().settings
+  const c = t().common
   return (
     <>
-      <Row label="排除的应用" hint="桌宠不会站到这些应用的窗口上，适合截图、悬浮窗类工具">
-        <span className="rs-line__value">{apps.length} 个</span>
-        <Button onClick={() => setOpen(!open)}>{open ? '收起' : '编辑'}</Button>
+      <Row label={s.ignoredApps} hint={s.ignoredAppsHint}>
+        <span className="rs-line__value">{s.appCount(apps.length)}</span>
+        <Button onClick={() => setOpen(!open)}>{open ? c.collapse : c.edit}</Button>
       </Row>
       {open && (
         <div className="rs-line rs-line--block">
@@ -205,12 +212,12 @@ function IgnoreList({ apps, defaults }: { apps: string[]; defaults: string[] }) 
             {apps.map((a) => (
               <span key={a} className="rs-chip">
                 {a}
-                <button type="button" className="rs-chip__x" aria-label={`移除 ${a}`} onClick={() => set(apps.filter((x) => x !== a))}>
+                <button type="button" className="rs-chip__x" aria-label={s.removeApp(a)} onClick={() => set(apps.filter((x) => x !== a))}>
                   ✕
                 </button>
               </span>
             ))}
-            {apps.length === 0 && <span className="rs-hint">没有排除任何应用</span>}
+            {apps.length === 0 && <span className="rs-hint">{s.noIgnoredApps}</span>}
           </div>
           <form
             className="rs-row"
@@ -220,12 +227,12 @@ function IgnoreList({ apps, defaults }: { apps: string[]; defaults: string[] }) 
             }}
           >
             <Field.Root className="rs-grow">
-              <Field.Control placeholder="进程名，如 Snipaste" value={draft} onChange={(e) => setDraft((e.target as HTMLInputElement).value)} />
+              <Field.Control placeholder={s.processPlaceholder} value={draft} onChange={(e) => setDraft((e.target as HTMLInputElement).value)} />
             </Field.Root>
             <Button type="submit" disabled={!draft.trim()}>
-              添加
+              {c.add}
             </Button>
-            {!same && <Button onClick={() => set(defaults)}>恢复默认</Button>}
+            {!same && <Button onClick={() => set(defaults)}>{s.restoreDefaults}</Button>}
           </form>
         </div>
       )}
@@ -235,7 +242,7 @@ function IgnoreList({ apps, defaults }: { apps: string[]; defaults: string[] }) 
 
 /** 构建号是毫秒时间戳：显示成本地时间 */
 function formatBuild(build: number) {
-  if (!build) return '内置版本'
+  if (!build) return t().settings.builtinBuild
   const d = new Date(build)
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`

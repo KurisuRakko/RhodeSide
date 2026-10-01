@@ -121,4 +121,26 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(Set(pets.map(\.id)).count, pets.count)
         XCTAssertEqual(pets[0].height, PetConfig.heightRange.upperBound)
     }
+
+    func testLanguageDefaultsToSystem() throws {
+        let old = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"pets":[]}"#.utf8))
+        XCTAssertEqual(old.language, UILanguage.system)
+        let bad = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"language":3}"#.utf8))
+        XCTAssertEqual(bad.language, UILanguage.system)
+        let en = try JSONDecoder().decode(AppConfig.self, from: Data(#"{"language":"en"}"#.utf8))
+        XCTAssertEqual(en.language, "en")
+    }
+
+    func testLanguageResolve() {
+        XCTAssertEqual(UILanguage.resolve("en", preferred: ["zh-Hans-CN"]), .en)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-Hans-CN", "en-US"]), .zhHans)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-Hant-HK"]), .zhHant)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-TW"]), .zhHant)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["en-AU", "zh-Hans"]), .en)
+        XCTAssertEqual(UILanguage.resolve("klingon", preferred: ["ja-JP"]), .en)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: []), .zhHans)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-Hans-HK"]), .zhHans)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["zh-HK"]), .zhHant)
+        XCTAssertEqual(UILanguage.resolve("system", preferred: ["yue-Hant-HK"]), .zhHant)
+    }
 }

@@ -12,6 +12,7 @@
 import { collectSets, fetchManifest, fetchSetImages, fetchSkeletons, type ModelSet } from '../stage/loader.ts'
 import { boundsOf, loadModel, type Box, type LoadedModel } from '../stage/model.ts'
 import { detectCombos } from '../stage/combos.ts'
+import { LANGS, setLang, type Lang } from '../i18n/index.ts'
 import { listen, native, post as postNative } from '../native/transport.ts'
 import { fetchVoice, pauseVoice, primeAudio, setVoice, useVoice, voiceTouch, type VoiceSettings } from './voice.ts'
 
@@ -29,6 +30,8 @@ type LoadMsg = {
   model?: string
   /** 全局语音设置（开关 / 音量） */
   voice?: VoiceSettings
+  /** 界面语言（已解析好的 zh-Hans / zh-Hant / en）：载入失败的原因、连招名用；老版本 App 不带，按系统语言 */
+  lang?: string
 }
 
 type Incoming =
@@ -362,6 +365,7 @@ function hit(id: number, x: number, y: number) {
 function receive(msg: Incoming) {
   switch (msg.type) {
     case 'load':
+      if ((LANGS as string[]).includes(msg.lang ?? '')) setLang(msg.lang as Lang)
       setVoice(msg.voice)
       primeAudio()
       void load(msg)

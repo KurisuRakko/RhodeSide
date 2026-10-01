@@ -75,7 +75,10 @@
     "id": "char-2026-yu",
     "name": "余",
     "dir": "models-private/余",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "zh-Hant": "余"
+    }
   },
   {
     "id": "char-4058-pepe",
@@ -327,7 +330,10 @@
     "id": "char-197-poca",
     "name": "早露",
     "dir": "models-private/早露",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "en": "Rosa"
+    }
   },
   {
     "id": "char-136-hsguma",
@@ -453,7 +459,10 @@
     "id": "char-1020-reed2",
     "name": "焰影苇草",
     "dir": "models-private/焰影苇草",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "en": "Reed the Flame Shadow"
+    }
   },
   {
     "id": "char-1048-orchd2",
@@ -555,7 +564,10 @@
     "id": "char-4226-veen",
     "name": "维伊",
     "dir": "models-private/维伊",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "en": "Viy"
+    }
   },
   {
     "id": "char-1019-siege2",
@@ -699,7 +711,10 @@
     "id": "char-2024-chyue",
     "name": "重岳",
     "dir": "models-private/重岳",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "zh-Hant": "重岳"
+    }
   },
   {
     "id": "char-358-lisa",
@@ -771,7 +786,10 @@
     "id": "char-4055-bgsnow",
     "name": "鸿雪",
     "dir": "models-private/鸿雪",
-    "source": "prts"
+    "source": "prts",
+    "names": {
+      "en": "Pozëmka"
+    }
   },
   {
     "id": "char-1029-yato2",

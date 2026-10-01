@@ -32,6 +32,16 @@ macOS 版的部署、用法、文件位置见 [macos/README.md](macos/README.md)
   用 XWayland 跑 X11 那套（只看得到 X11 程序的窗口）、wlroots / KDE 用 layer-shell 做全屏透明层；
   GNOME 读窗口位置要靠 Shell 扩展。读不到窗口时退化成只沿屏幕底边走。
 
+## 界面语言
+
+简体中文 / 繁體中文（香港用词）/ English，设置 → 通用 → 语言（默认跟随系统，存在 `config.json` 的 `language`）。
+- 网页：`web/src/i18n/`，`zh-Hans.ts` 是基准表，另两张表的类型就是它（缺 key tsc 报错）；界面代码里用 `t()`。
+- 壳：`macos/Sources/Rhodeside/Strings.swift` 的 `tr("简", "繁", "English")`，调用处就地写三语；纯日志不翻。
+- 干员名、时装名只在显示时换：中文名是文件夹名和配置 key，分组 `基建 / 正面 / 背面` 也是 key，都不能翻。
+  译名随在线目录下发（`names` / `outfits`）：英文由 `fetch-prts.mjs` 写进 `models-private/names.json`
+  （PRTS 干员一览的 `data-en` + 国际服 `skin_table`），繁体由 `publish.mjs` 发布时简转繁（`opencc-js`，服务器上要 `corepack pnpm install`）。
+- 老版本 App 没有 `language` 字段时，网页按系统语言显示、不出语言选项。
+
 ## 开发
 
 ```bash

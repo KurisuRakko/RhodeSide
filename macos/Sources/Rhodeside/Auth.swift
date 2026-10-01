@@ -46,8 +46,8 @@ final class Auth {
         case notSignedIn, denied
         var errorDescription: String? {
             switch self {
-            case .notSignedIn: "需要登录 Priestess"
-            case .denied: "当前账号没有 Rhodeside 的使用权限"
+            case .notSignedIn: tr("需要登录 Priestess", "需要登入 Priestess", "Sign in to Priestess first")
+            case .denied: tr("当前账号没有 Rhodeside 的使用权限", "目前的帳戶沒有 Rhodeside 的使用權限", "This account doesn't have access to Rhodeside")
             }
         }
     }
@@ -118,12 +118,12 @@ final class Auth {
             fail(arg("auth_error_description") ?? e)
             return
         }
-        guard let code = arg("login_code") else { return fail("回调里没有 login_code") }
+        guard let code = arg("login_code") else { return fail(tr("回调里没有 login_code", "回調裡沒有 login_code", "The callback has no login_code")) }
         pending.removeAll { Date().timeIntervalSince($0.started) > 600 }
-        guard !pending.isEmpty else { return fail("没有进行中的登录（或已超时），请重新登录") }
+        guard !pending.isEmpty else { return fail(tr("没有进行中的登录（或已超时），请重新登录", "沒有進行中的登入（或已逾時），請重新登入", "No sign-in in progress (or it timed out). Please sign in again")) }
         // 带了 state 就必须对得上；没带时只在只有一个进行中的登录时接受（PKCE 仍然把登录码绑在这个 verifier 上）
         let match = arg("state").map { s in pending.first { $0.state == s } } ?? (pending.count == 1 ? pending.first : nil)
-        guard let p = match else { return fail("state 不匹配，已拒绝这次登录") }
+        guard let p = match else { return fail(tr("state 不匹配，已拒绝这次登录", "state 不符，已拒絕這次登入", "State mismatch; this sign-in was rejected")) }
         pending = []
         Task { @MainActor in
             do {
@@ -212,7 +212,7 @@ final class Auth {
 
     private func store(_ json: [String: Any]) throws {
         guard let access = json["access_token"] as? String, let refresh = json["refresh_token"] as? String else {
-            throw AuthError(status: 200, code: "bad_response", message: "Priestess 返回的令牌不完整")
+            throw AuthError(status: 200, code: "bad_response", message: tr("Priestess 返回的令牌不完整", "Priestess 傳回的權杖不完整", "Priestess returned an incomplete token"))
         }
         let exp = Self.jwtExpiry(access) ?? Date().addingTimeInterval(600)
         let t = Tokens(access: access, refresh: refresh, accessExpires: exp, user: tokens?.user ?? user)
@@ -231,25 +231,25 @@ final class Auth {
             case (401, "invalid_refresh_token"), (401, "invalid_login_code"):
                 clearTokens()
                 phase = .signedOut
-                error = e.code == "invalid_login_code" ? "登录码已失效，请重新登录" : "登录已失效，请重新登录"
+                error = e.code == "invalid_login_code" ? tr("登录码已失效，请重新登录", "登入碼已失效，請重新登入", "The sign-in code expired. Please sign in again") : tr("登录已失效，请重新登录", "登入已失效，請重新登入", "Your sign-in expired. Please sign in again")
             case (403, "app_disabled"), (404, "app_not_found"):
                 clearTokens()
                 phase = .signedOut
-                error = "Priestess 里没有可用的 \(config.appID) 应用（未注册或已停用）"
+                error = tr("Priestess 里没有可用的 \(config.appID) 应用（未注册或已停用）", "Priestess 裡沒有可用的 \(config.appID) 應用程式（未註冊或已停用）", "Priestess has no usable \(config.appID) app (not registered or disabled)")
             case (403, "local_user_disabled"):
                 clearTokens()
                 phase = .signedOut
-                error = "账号已停用"
+                error = tr("账号已停用", "帳戶已停用", "This account has been disabled")
             case (400, "pkce_required"):
                 phase = tokens == nil ? .signedOut : .signedIn
-                error = "登录缺少 PKCE 参数，请重新登录"
+                error = tr("登录缺少 PKCE 参数，请重新登录", "登入缺少 PKCE 參數，請重新登入", "Sign-in is missing PKCE parameters. Please sign in again")
             case (401, _):
                 clearTokens()
                 phase = .signedOut
-                error = "登录已失效，请重新登录（\(e.code)）"
+                error = tr("登录已失效，请重新登录（\(e.code)）", "登入已失效，請重新登入（\(e.code)）", "Your sign-in expired. Please sign in again (\(e.code))")
             default:
                 if tokens == nil { phase = .signedOut }
-                error = "\(e.message)（\(e.code)）"
+                error = tr("\(e.message)（\(e.code)）", "\(e.message)（\(e.code)）", "\(e.message) (\(e.code))")
             }
         } else {
             if tokens == nil { phase = .signedOut }

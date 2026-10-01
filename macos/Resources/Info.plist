@@ -4,6 +4,15 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
+	<!-- 系统自带的界面（打开面板的按钮、输入框右键菜单）按系统语言在这三种里挑；App 自己的文字按设置里的语言 -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
+		<string>en</string>
+	</array>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleExecutable</key>
 	<string>Rhodeside</string>
 	<key>CFBundleIdentifier</key>

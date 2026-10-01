@@ -9,6 +9,7 @@
  * 世界坐标 = CSS 像素，原点在画布左下角、y 向上。贴图一律在上传时转成预乘 alpha，
  * 渲染固定走 PMA 管线：透明背景上的半透明边缘才不会发黑/发白。
  */
+import { t } from '../i18n/index.ts'
 import { boundsOf, loadModel, type LoadedModel } from './model.ts'
 import type { ModelSet } from './loader.ts'
 
@@ -95,7 +96,7 @@ export class Stage {
       antialias: true,
       preserveDrawingBuffer: true, // 截图要读回帧缓冲
     })
-    if (!gl) throw new Error('浏览器不支持 WebGL')
+    if (!gl) throw new Error(t().stage.noWebGL)
     this.ctx = new spine.webgl.ManagedWebGLRenderingContext(gl)
     this.renderer = new spine.webgl.SceneRenderer(canvas, this.ctx, true)
     this.onStatus = onStatus

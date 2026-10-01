@@ -20,7 +20,7 @@ enum LoginItem {
     }
 
     static var state: (enabled: Bool, detail: String) {
-        FileManager.default.fileExists(atPath: agentURL.path) ? (true, "已启用") : (false, "未启用")
+        FileManager.default.fileExists(atPath: agentURL.path) ? (true, tr("已启用", "已啟用", "On")) : (false, tr("未启用", "未啟用", "Off"))
     }
 
     /// 返回给用户看的错误（nil = 成功）
@@ -36,7 +36,7 @@ enum LoginItem {
             Log.info("登录时启动：\(agentURL.path)")
             return nil
         } catch {
-            return "登录项设置失败：\(error.localizedDescription)"
+            return tr("登录项设置失败：\(error.localizedDescription)", "登入項目設定失敗：\(error.localizedDescription)", "Couldn't change the login item: \(error.localizedDescription)")
         }
     }
 

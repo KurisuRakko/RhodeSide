@@ -32,7 +32,7 @@ final class Importer {
         let files = urls.filter { !isDirectory($0) }
         for d in dirs {
             do { out.append(try stage(sources: [d], name: d.lastPathComponent, keepStructureOf: d)) } catch {
-                errors.append("\(d.lastPathComponent)：\(error.localizedDescription)")
+                errors.append(tr("\(d.lastPathComponent)：\(error.localizedDescription)", "\(d.lastPathComponent)：\(error.localizedDescription)", "\(d.lastPathComponent): \(error.localizedDescription)"))
             }
         }
         if !files.isEmpty {
@@ -45,7 +45,7 @@ final class Importer {
     }
 
     func commit(_ token: String) throws -> String {
-        guard let job = jobs.removeValue(forKey: token) else { throw Oops("导入任务已失效，请重新导入") }
+        guard let job = jobs.removeValue(forKey: token) else { throw Oops(tr("导入任务已失效，请重新导入", "匯入工作已失效，請重新匯入", "This import expired; please import again")) }
         let final = ModelLibrary.uniqueName(job.name)
         try FileManager.default.moveItem(at: job.dir, to: Paths.userModels.appendingPathComponent(final, isDirectory: true))
         try? FileManager.default.removeItem(at: Paths.imports.appendingPathComponent(token))
@@ -78,13 +78,13 @@ final class Importer {
                 todo.append((src, src.lastPathComponent))
             }
         }
-        guard !todo.isEmpty else { throw Oops("未找到模型文件（.skel / .json / .atlas / .png）") }
+        guard !todo.isEmpty else { throw Oops(tr("未找到模型文件（.skel / .json / .atlas / .png）", "找不到模型檔案（.skel / .json / .atlas / .png）", "No model files found (.skel / .json / .atlas / .png)")) }
         var seen = Set<String>()
         for (_, rel) in todo where !seen.insert(rel.lowercased()).inserted {
-            throw Oops("有两个同名文件「\(rel)」，请分别放进各自的文件夹再导入")
+            throw Oops(tr("有两个同名文件「\(rel)」，请分别放进各自的文件夹再导入", "有兩個同名檔案「\(rel)」，請分別放進各自的檔案夾再匯入", "Two files are both named \"\(rel)\"; put them in separate folders and import again"))
         }
         let total = todo.reduce(0) { $0 + ((try? $1.0.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) }
-        guard total <= Self.maxBytes else { throw Oops("文件过大（\(total / 1_048_576) MB），上限 \(Self.maxBytes / 1_048_576) MB") }
+        guard total <= Self.maxBytes else { throw Oops(tr("文件过大（\(total / 1_048_576) MB），上限 \(Self.maxBytes / 1_048_576) MB", "檔案過大（\(total / 1_048_576) MB），上限 \(Self.maxBytes / 1_048_576) MB", "Files too large (\(total / 1_048_576) MB); the limit is \(Self.maxBytes / 1_048_576) MB")) }
         do {
             for (src, rel) in todo {
                 let to = dest.appendingPathComponent(rel)
@@ -93,7 +93,7 @@ final class Importer {
             }
         } catch {
             try? fm.removeItem(at: Paths.imports.appendingPathComponent(token))
-            throw Oops("复制文件失败：\(error.localizedDescription)")
+            throw Oops(tr("复制文件失败：\(error.localizedDescription)", "複製檔案失敗：\(error.localizedDescription)", "Couldn't copy files: \(error.localizedDescription)"))
         }
         return Job(token: token, name: name, dir: dest, files: ModelLibrary.listFiles(dest, prefix: name))
     }
@@ -104,7 +104,7 @@ final class Importer {
         var stem = skel.deletingPathExtension().lastPathComponent
         if stem.lowercased().hasSuffix(".skel") { stem = String(stem.dropLast(5)) }
         if stem.lowercased().hasPrefix("build_") { stem = String(stem.dropFirst(6)) }
-        return stem.isEmpty ? "未命名模型" : stem
+        return stem.isEmpty ? tr("未命名模型", "未命名模型", "Untitled model") : stem
     }
 
     private func isDirectory(_ url: URL) -> Bool {

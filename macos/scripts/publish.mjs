@@ -10,6 +10,10 @@
  *   <RELEASE_DIR>/v1/apps/Rhodeside-<build>.tar.gz + v1/app.json      App 包与清单
  *   <RELEASE_DIR>/v1/models/<id>-<version>.tar.gz + v1/models.json   模型包与目录（version = 模型内容的哈希，没改就不重新打包）
  *   <RELEASE_DIR>/v1/previews/<id>-<version>.tar.gz                  模型库预览：只有默认时装的基建模型
+ * 目录里每个模型另带译名 names {en, zh-Hant} 和 outfits {时装 key: {en, zh-Hant}}（英文来自 models-private/names.json，
+ * 繁体是发布时简转繁（香港用词））；译名不进 version，改译名不会让已装的模型重新下载。
+ * 自动的译名不对时（专有名被简转繁转错，如「余」→「餘」；PRTS 的英文名不是国际服的），在 models.json 那一条写
+ * "names": {"en": "…", "zh-Hant": "…"} 覆盖。
  * 清单是签名信封 {key, payload, sig}：payload 是 JSON 的 base64（kind 区分 web / app），sig 是对 payload 原始字节的
  * Ed25519 签名；App 内置公钥，验不过就不用。私钥：~/.config/rhodeside/release-ed25519.pem（600，不进仓库）。
  */
@@ -125,6 +129,24 @@ function previewFiles(src, files) {
   return out
 }
 
+/**
+ * 译名：干员名 {en?, zh-Hant} + 每套时装 {en?, zh-Hant}。默认时装统一叫 Default / 預設。
+ * 没有 skins.json（导入的 / 自己打包的）只翻干员名。
+ */
+function translations(src, zh, en, hk, override) {
+  const names = { ...(en?.en ? { en: en.en } : {}), 'zh-Hant': hk(zh), ...override }
+  let skins = {}
+  try {
+    skins = JSON.parse(readFileSync(join(src, 'skins.json'), 'utf8'))
+  } catch {}
+  const outfits = {}
+  for (const [key, name] of Object.entries(skins)) {
+    if (name === '默认') outfits[key] = { en: 'Default', 'zh-Hant': '預設' }
+    else outfits[key] = { ...(en?.skins?.[key] ? { en: en.skins[key] } : {}), 'zh-Hant': hk(name) }
+  }
+  return Object.keys(outfits).length ? { names, outfits } : { names }
+}
+
 /** 时装套数：skins.json 有就数它，没有就数不同的骨骼名（去掉 build_） */
 function skinCount(src, files) {
   try {
@@ -134,9 +156,25 @@ function skinCount(src, files) {
   }
 }
 
-function publishModels(listFile) {
+async function publishModels(listFile) {
   const root = resolve(dirname(listFile), '..')
   const list = JSON.parse(readFileSync(listFile, 'utf8'))
+  // fetch-prts.mjs 写的英文名；没有就只有繁体
+  const namesFile = join(root, 'models-private/names.json')
+  let english = {}
+  try {
+    if (existsSync(namesFile)) english = JSON.parse(readFileSync(namesFile, 'utf8'))
+  } catch (e) {
+    console.warn(`[publish] ${namesFile} 读不懂，这次没有英文名：${e.message}`)
+  }
+  // 服务器上还没 pnpm install 过新依赖时不要让每天的同步失败：繁体译名先原样用中文
+  let hk = (s) => s
+  try {
+    const { Converter } = await import('opencc-js')
+    hk = Converter({ from: 'cn', to: 'hk' })
+  } catch (e) {
+    console.warn(`[publish] 没装 opencc-js（corepack pnpm install），这次繁体译名用简体原文：${e.message}`)
+  }
   const dir = join(releaseDir, 'v1/models')
   const previewDir = join(releaseDir, 'v1/previews')
   mkdirSync(dir, { recursive: true })
@@ -176,6 +214,7 @@ function publishModels(listFile) {
       default: !!m.default,
       skins: skinCount(src, files),
       preview,
+      ...translations(src, m.name, english[m.name], hk, m.names),
     })
     console.log(`[publish] model ${m.id} ${version} · ${(bytes.length / 1024).toFixed(0)} KB · ${files.length} 个文件${preview ? ` · 预览 ${(preview.size / 1024).toFixed(0)} KB` : ' · 没有预览'}`)
   }
@@ -192,7 +231,7 @@ function publishModels(listFile) {
 const modelsFile = opt('--models', '')
 const appFile = opt('--app', '')
 if (modelsFile) {
-  publishModels(resolve(modelsFile))
+  await publishModels(resolve(modelsFile))
 } else if (appFile) {
   const build = Number(opt('--build', ''))
   if (!Number.isSafeInteger(build) || build <= 0) fail(`--build 不对：${build}`)

@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { SegmentedChoice, Select, Switch } from '@rakko/react'
 
+import { t } from '../i18n/index.ts'
+
 /** 一组设置：组标题在框外，框里一行一项，行之间有分隔线 */
 export function Group({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -49,7 +51,7 @@ export function SwitchRow({ label, hint, checked, onChange }: { label: string; h
 
 /** 下拉选择：当前值不在选项里（手改了配置、模型被删了）时补一项标成不可用，界面和实际配置保持一致 */
 export function Pick({ label, value, options, onChange }: { label: string; value: string | null; options: [string, string][]; onChange: (v: string) => void }) {
-  const all: [string, string][] = value !== null && !options.some(([v]) => v === value) ? [...options, [value, `${value}（不可用）`]] : options
+  const all: [string, string][] = value !== null && !options.some(([v]) => v === value) ? [...options, [value, t().common.unavailable(value)]] : options
   // items 身份一变 Base UI 的 Select 就会重算：按内容 memo
   const key = JSON.stringify(all)
   const items = useMemo(() => (JSON.parse(key) as [string, string][]).map(([v, text]) => ({ value: v, label: text })), [key])

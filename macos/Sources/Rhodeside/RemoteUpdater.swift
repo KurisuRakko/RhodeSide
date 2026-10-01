@@ -161,7 +161,7 @@ final class RemoteUpdater {
         if appState == "restarting" { return }
         await checkModels(base: base, headers: headers, errors: &errors)
 
-        lastError = errors.isEmpty ? nil : errors.joined(separator: "；")
+        lastError = errors.isEmpty ? nil : errors.joined(separator: tr("；", "；", "; "))
         if let e = lastError, e != oldError { Log.warn("更新检查：\(e)") }
     }
 
@@ -187,12 +187,12 @@ final class RemoteUpdater {
         case .success(let m?):
             remoteWeb = m.build
             if m.bridge != Self.bridge {
-                errors.append("前端协议版本 \(m.bridge) 与 App（\(Self.bridge)）不一致，等待 App 更新")
+                errors.append(tr("前端协议版本 \(m.bridge) 与 App（\(Self.bridge)）不一致，等待 App 更新", "介面協議版本 \(m.bridge) 與 App（\(Self.bridge)）不一致，等待 App 更新", "UI protocol version \(m.bridge) doesn't match the app (\(Self.bridge)); waiting for an app update"))
             } else if m.build > Paths.webBuild(Paths.webRoot) {
                 if let e = await updateWeb(base: base, m, headers: headers) { errors.append(e) }
             }
         case .success(nil): remoteWeb = nil
-        case .failure(let e): errors.append("前端：\(e.localizedDescription)")
+        case .failure(let e): errors.append(tr("前端：\(e.localizedDescription)", "介面：\(e.localizedDescription)", "UI: \(e.localizedDescription)"))
         }
     }
 
@@ -215,9 +215,9 @@ final class RemoteUpdater {
     /// 模型库预览：默认时装的基建模型（缓存里有同版本的就直接用）。返回相对 previews/ 的文件列表
     @MainActor
     func preview(_ id: String) async throws -> [String] {
-        guard let base = URL(string: config.url) else { throw Oops("更新地址不对") }
-        guard let m = catalog?.models.first(where: { $0.id == id }) else { throw Oops("模型库里没有这个模型") }
-        guard let p = m.preview else { throw Oops("这个模型没有预览") }
+        guard let base = URL(string: config.url) else { throw Oops(tr("更新地址不对", "更新地址不正確", "Invalid update URL")) }
+        guard let m = catalog?.models.first(where: { $0.id == id }) else { throw Oops(tr("模型库里没有这个模型", "模型庫裡沒有這個模型", "This model isn't in the library")) }
+        guard let p = m.preview else { throw Oops(tr("这个模型没有预览", "這個模型沒有預覽", "No preview for this model")) }
         if let files = ModelStore.cachedPreview(m) { return files }
         if let running = previewTasks[id] { return try await running.value }
         let task = Task { @MainActor () throws -> [String] in
@@ -250,15 +250,15 @@ final class RemoteUpdater {
                 return
             case 401:
                 ticket = nil
-                return errors.append("模型：需要登录")
+                return errors.append(tr("模型：需要登录", "模型：需要登入", "Models: sign-in required"))
             case let code:
-                return errors.append("模型目录 HTTP \(code)")
+                return errors.append(tr("模型目录 HTTP \(code)", "模型目錄 HTTP \(code)", "Model list HTTP \(code)"))
             }
         } catch {
-            return errors.append("模型：\(error.localizedDescription)")
+            return errors.append(tr("模型：\(error.localizedDescription)", "模型：\(error.localizedDescription)", "Models: \(error.localizedDescription)"))
         }
         switch result {
-        case .failure(let e): return errors.append("模型：\(e.localizedDescription)")
+        case .failure(let e): return errors.append(tr("模型：\(e.localizedDescription)", "模型：\(e.localizedDescription)", "Models: \(e.localizedDescription)"))
         case .success(let c):
             catalog = c
             ModelStore.lastCatalog = c
@@ -284,7 +284,7 @@ final class RemoteUpdater {
                 let n = (modelBackoff[m.id]?.count ?? 0) + 1
                 modelBackoff[m.id] = (n, Date().addingTimeInterval(min(3600, 30 * pow(4, Double(n - 1)))))
                 modelFailed[m.id] = error.localizedDescription
-                errors.append("模型「\(m.name)」：\(error.localizedDescription)")
+                errors.append(tr("模型「\(m.name)」：\(error.localizedDescription)", "模型「\(m.name)」：\(error.localizedDescription)", "Model \"\(m.name)\": \(error.localizedDescription)"))
                 // 票据失效（401）就别接着试剩下的了
                 if ticket == nil { break }
             }
@@ -305,7 +305,7 @@ final class RemoteUpdater {
             return nil
         } catch {
             failed(m.build)
-            return "前端 build \(m.build)：\(error.localizedDescription)"
+            return tr("前端 build \(m.build)：\(error.localizedDescription)", "介面 build \(m.build)：\(error.localizedDescription)", "UI build \(m.build): \(error.localizedDescription)")
         }
     }
 
@@ -378,18 +378,18 @@ final class RemoteUpdater {
         guard let env = try? JSONDecoder().decode(Envelope.self, from: data),
               let payload = Data(base64Encoded: env.payload), let sig = Data(base64Encoded: env.sig),
               let keyData = Data(base64Encoded: publicKey)
-        else { throw Oops("清单格式不对") }
+        else { throw Oops(tr("清单格式不对", "清單格式不正確", "Malformed manifest")) }
         let key = try Curve25519.Signing.PublicKey(rawRepresentation: keyData)
-        guard key.isValidSignature(sig, for: payload) else { throw Oops("清单签名无效") }
+        guard key.isValidSignature(sig, for: payload) else { throw Oops(tr("清单签名无效", "清單簽名無效", "Invalid manifest signature")) }
         return payload
     }
 
     static func verify(_ data: Data, kind: String) throws -> Manifest {
         let payload = try openEnvelope(data)
-        guard let m = try? JSONDecoder().decode(Manifest.self, from: payload), m.schema == 1 else { throw Oops("清单版本不支持") }
-        guard (m.kind ?? "web") == kind else { throw Oops("清单类型不对（\(m.kind ?? "web")）") }
+        guard let m = try? JSONDecoder().decode(Manifest.self, from: payload), m.schema == 1 else { throw Oops(tr("清单版本不支持", "不支援的清單版本", "Unsupported manifest version")) }
+        guard (m.kind ?? "web") == kind else { throw Oops(tr("清单类型不对（\(m.kind ?? "web")）", "清單類型不正確（\(m.kind ?? "web")）", "Wrong manifest kind (\(m.kind ?? "web"))")) }
         let prefix = kind == "app" ? "v1/apps/" : "v1/bundles/"
-        guard m.bundle.path.hasPrefix(prefix), !m.bundle.path.contains("..") else { throw Oops("清单里的包路径不合法") }
+        guard m.bundle.path.hasPrefix(prefix), !m.bundle.path.contains("..") else { throw Oops(tr("清单里的包路径不合法", "清單裡的套件路徑不合法", "Invalid package path in manifest")) }
         return m
     }
 
@@ -404,7 +404,7 @@ final class RemoteUpdater {
             let http = resp as? HTTPURLResponse
             switch http?.statusCode ?? 0 {
             case 304:
-                guard let c = cache[path] else { return .failure(Oops("清单返回 304，但本地没有缓存")) }
+                guard let c = cache[path] else { return .failure(Oops(tr("清单返回 304，但本地没有缓存", "清單傳回 304，但本機沒有快取", "Manifest returned 304 but there's no local cache"))) }
                 return c.result.map { Optional($0) }
             case 200:
                 let r: Result<Manifest, Oops>
@@ -416,9 +416,9 @@ final class RemoteUpdater {
                 return .success(nil)
             case 401:
                 ticket = nil
-                return .failure(Oops(auth.enabled ? "票据无效，下次重新换票" : "更新通道需要登录（设置 → 账号）"))
+                return .failure(Oops(auth.enabled ? tr("票据无效，下次重新换票", "票據無效，下次重新換票", "Ticket invalid; will get a new one next time") : tr("更新通道需要登录（设置 → 账号）", "更新通道需要登入（設定 → 帳戶）", "Updates require sign-in (Settings → Account)")))
             case let s:
-                return .failure(Oops("清单 HTTP \(s)"))
+                return .failure(Oops(tr("清单 HTTP \(s)", "清單 HTTP \(s)", "Manifest HTTP \(s)")))
             }
         } catch {
             return .failure(Oops(error.localizedDescription))
@@ -437,7 +437,7 @@ final class RemoteUpdater {
         let (tmp, resp) = try await session.download(for: req)
         let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if status == 401 { ticket = nil }
-        guard status == 200 else { throw Oops("下载失败（HTTP \(status)）") }
+        guard status == 200 else { throw Oops(tr("下载失败（HTTP \(status)）", "下載失敗（HTTP \(status)）", "Download failed (HTTP \(status))")) }
         let file = Paths.updates.appendingPathComponent("\(tag).tar.gz")
         try? FileManager.default.removeItem(at: file)
         try FileManager.default.moveItem(at: tmp, to: file)
@@ -448,7 +448,7 @@ final class RemoteUpdater {
         }.value
         guard ok else {
             try? FileManager.default.removeItem(at: file)
-            throw Oops("包校验失败（大小或 sha256 不符）")
+            throw Oops(tr("包校验失败（大小或 sha256 不符）", "套件校驗失敗（大小或 sha256 不符）", "Package check failed (size or sha256 mismatch)"))
         }
         return file
     }
@@ -459,7 +459,7 @@ final class RemoteUpdater {
     @MainActor
     func ticketHeaders(base: URL) async throws -> [String: String] {
         guard auth.enabled else { return [:] }
-        if let until = ticketBlockedUntil, Date() < until { throw Oops("换票被拒，\(Int(until.timeIntervalSinceNow / 60) + 1) 分钟后重试（或点「立即检查」）") }
+        if let until = ticketBlockedUntil, Date() < until { throw Oops(tr("换票被拒，\(Int(until.timeIntervalSinceNow / 60) + 1) 分钟后重试（或点「检查更新」）", "換票被拒，\(Int(until.timeIntervalSinceNow / 60) + 1) 分鐘後重試（或按「檢查更新」）", "Ticket request refused; retrying in \(Int(until.timeIntervalSinceNow / 60) + 1) min (or click \"Check for updates\")")) }
         if let t = ticket, t.expires.timeIntervalSinceNow > 60 { return ["X-Rhodeside-Ticket": t.value] }
         for attempt in 0..<2 {
             let access = try await auth.accessToken()
@@ -483,10 +483,10 @@ final class RemoteUpdater {
                 throw Auth.Failure.denied
             }
             if status == 401 || status == 403 { ticketBlockedUntil = Date().addingTimeInterval(300) }
-            throw Oops("换票失败（HTTP \(status)\(code.map { "，\($0)" } ?? "")）")
+            throw Oops(tr("换票失败（HTTP \(status)\(code.map { "，\($0)" } ?? "")）", "換票失敗（HTTP \(status)\(code.map { "，\($0)" } ?? "")）", "Ticket request failed (HTTP \(status)\(code.map { ", \($0)" } ?? ""))"))
         }
         ticketBlockedUntil = Date().addingTimeInterval(300)
-        throw Oops("换票失败：新令牌仍被拒绝")
+        throw Oops(tr("换票失败：新令牌仍被拒绝", "換票失敗：新權杖仍被拒絕", "Ticket request failed: the new token was still rejected"))
     }
 }
 
@@ -503,11 +503,11 @@ private func vetArchive(_ archive: URL) throws {
     try p.run()
     let data = out.fileHandleForReading.readDataToEndOfFile()
     p.waitUntilExit()
-    guard p.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else { throw Oops("包无法读取") }
+    guard p.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else { throw Oops(tr("包无法读取", "套件無法讀取", "Can't read the package")) }
     for line in text.split(separator: "\n") {
         if line.first == "l" || line.first == "h" || line.contains(" -> ") || line.contains(" link to ")
             || line.contains("../") || line.hasSuffix("/..") || line.contains(" /") {
-            throw Oops("包里有不安全的条目")
+            throw Oops(tr("包里有不安全的条目", "套件裡有不安全的項目", "The package contains unsafe entries"))
         }
     }
 }
@@ -525,7 +525,7 @@ func untar(_ archive: URL, into dir: URL) throws {
     tar.waitUntilExit()
     guard tar.terminationStatus == 0 else {
         try? fm.removeItem(at: dir)
-        throw Oops("解压失败")
+        throw Oops(tr("解压失败", "解壓失敗", "Extraction failed"))
     }
 }
 
@@ -541,7 +541,7 @@ enum WebInstaller {
               fm.fileExists(atPath: incoming.appendingPathComponent("settings.html").path)
         else {
             try? fm.removeItem(at: incoming)
-            throw Oops("前端包内容不完整")
+            throw Oops(tr("前端包内容不完整", "介面套件內容不完整", "The UI package is incomplete"))
         }
         try String(build).write(to: incoming.appendingPathComponent(".rhodeside-build"), atomically: true, encoding: .utf8)
         if fm.fileExists(atPath: Paths.webDev.path) { try fm.moveItem(at: Paths.webDev, to: old) }
@@ -566,14 +566,14 @@ enum AppInstaller {
         try untar(archive, into: staged)
         let app = staged.appendingPathComponent("Rhodeside.app", isDirectory: true)
         guard let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any] else {
-            throw Oops("新版本缺 Info.plist")
+            throw Oops(tr("新版本缺 Info.plist", "新版本缺少 Info.plist", "The new version is missing Info.plist"))
         }
-        guard info["CFBundleIdentifier"] as? String == Paths.bundleID else { throw Oops("新版本的 bundle id 不对") }
-        guard (info["RhodesideBuild"] as? String).flatMap({ Int64($0) }) == build else { throw Oops("新版本的构建号与清单不符") }
+        guard info["CFBundleIdentifier"] as? String == Paths.bundleID else { throw Oops(tr("新版本的 bundle id 不对", "新版本的 bundle id 不正確", "The new version has the wrong bundle id")) }
+        guard (info["RhodesideBuild"] as? String).flatMap({ Int64($0) }) == build else { throw Oops(tr("新版本的构建号与清单不符", "新版本的構建號與清單不符", "The new version's build number doesn't match the manifest")) }
         guard FileManager.default.isExecutableFile(atPath: app.appendingPathComponent("Contents/MacOS/Rhodeside").path) else {
-            throw Oops("新版本缺可执行文件")
+            throw Oops(tr("新版本缺可执行文件", "新版本缺少執行檔", "The new version is missing its executable"))
         }
-        guard run("/usr/bin/codesign", ["--verify", "--strict", app.path]) == 0 else { throw Oops("新版本代码签名校验失败") }
+        guard run("/usr/bin/codesign", ["--verify", "--strict", app.path]) == 0 else { throw Oops(tr("新版本代码签名校验失败", "新版本程式碼簽名校驗失敗", "The new version failed code-signature verification")) }
         return app
     }
 
@@ -585,7 +585,7 @@ enum AppInstaller {
             "submit", "-l", helperLabel, "--", "/bin/bash", script.path,
             String(getpid()), app.path, Bundle.main.bundleURL.path, String(build), Paths.updates.path,
         ])
-        guard status == 0 else { throw Oops("启动安装任务失败（launchctl \(status)）") }
+        guard status == 0 else { throw Oops(tr("启动安装任务失败（launchctl \(status)）", "啟動安裝工作失敗（launchctl \(status)）", "Couldn't start the installer (launchctl \(status))")) }
     }
 
     /// 新版本启动后调：告诉交接脚本「起来了」
@@ -616,10 +616,10 @@ enum AppInstaller {
     /// 能不能自更新：得是装好的 .app（有构建号），而且所在目录可写（能把旧版挪开）
     static var canSelfUpdate: String? {
         let app = Bundle.main.bundleURL
-        guard Paths.appBuild > 0, app.pathExtension == "app" else { return "当前不是打包安装的 App，跳过自更新" }
+        guard Paths.appBuild > 0, app.pathExtension == "app" else { return tr("当前不是打包安装的 App，跳过自更新", "目前不是打包安裝的 App，略過自動更新", "Not a packaged app install; skipping self-update") }
         guard !app.path.contains("/AppTranslocation/"),
               FileManager.default.isWritableFile(atPath: app.deletingLastPathComponent().path)
-        else { return "App 所在目录不可写，无法自更新（请重新安装到 ~/Applications）" }
+        else { return tr("App 所在目录不可写，无法自更新（请重新安装到 ~/Applications）", "App 所在目錄不可寫入，無法自動更新（請重新安裝到 ~/Applications）", "The app's folder isn't writable, so it can't update itself (reinstall it into ~/Applications)") }
         return nil
     }
 
